@@ -55,8 +55,8 @@ Starting empty instead: skip `npm run seed` and register your first recurrent co
 from the register screen.
 
 **Working in VS Code?** Press `F5` to run it with the debugger attached. Step-by-step
-instructions, including how to get Node without admin rights, are in
-**[SETUP.md](SETUP.md)**.
+instructions are in **[SETUP.md](SETUP.md)** — including how to get Node without admin
+rights, and what to do when a corporate TLS proxy blocks `git clone`.
 
 ## How it is put together
 

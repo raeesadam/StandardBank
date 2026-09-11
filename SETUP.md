@@ -50,6 +50,37 @@ git checkout claude/zealous-heisenberg-f87q8d
 code .
 ```
 
+### If the clone fails with "SSL certificate problem"
+
+```
+fatal: unable to access 'https://github.com/...': SSL certificate problem:
+unable to get local issuer certificate
+```
+
+This is a corporate network doing TLS inspection. Your browser trusts the
+company's root certificate because it is in the Windows certificate store; Git
+ships its own separate certificate list and does not look there. Point Git at
+the Windows store instead — no admin rights needed:
+
+```powershell
+git config --global http.sslBackend schannel
+```
+
+Then run the clone again. **Do not** turn off `http.sslVerify` — that disables
+certificate checking for every repository you ever clone.
+
+If that doesn't do it, skip Git entirely — see **Option C**.
+
+**Option C — download it as a ZIP (no Git at all)**
+
+1. In your browser, open
+   <https://github.com/raeesadam/StandardBank/archive/refs/heads/claude/zealous-heisenberg-f87q8d.zip>
+2. Unzip it somewhere under your user folder
+3. In VS Code: **File → Open Folder**, and pick the unzipped folder
+
+Your browser already trusts the company's certificate, so this always works.
+You lose the Git history, but everything runs exactly the same.
+
 ---
 
 ## Step 3 — Confirm your machine can run it
@@ -174,13 +205,30 @@ start over, delete the file (or run `npm run reset`).
 To keep it somewhere else — a network drive, or your home folder if the project
 folder is read-only:
 
+```powershell
+# Windows PowerShell (VS Code's default terminal on Windows)
+$env:RCM_DB_PATH="$HOME\rcm-register.json"; npm start
+```
+
 ```bash
 # macOS / Linux
 RCM_DB_PATH=~/rcm-register.json npm start
-
-# Windows PowerShell
-$env:RCM_DB_PATH="$HOME\rcm-register.json"; npm start
 ```
+
+### Using a different port
+
+```powershell
+# Windows PowerShell
+$env:PORT=8080; npm start
+```
+
+```bash
+# macOS / Linux
+PORT=8080 npm start
+```
+
+Then open <http://localhost:8080> instead. The `$env:` value lasts only for that
+terminal session.
 
 ---
 
@@ -189,7 +237,7 @@ $env:RCM_DB_PATH="$HOME\rcm-register.json"; npm start
 | What you see | What it means and what to do |
 |---|---|
 | `npm: command not found` | Node isn't installed, or VS Code was open before you installed it — close VS Code fully and reopen it |
-| `Port 4173 is already in use` | It's already running in another terminal. Either use that one, or run `PORT=8080 npm start` and open <http://localhost:8080> |
+| `Port 4173 is already in use` | It's already running in another terminal. Either use that one, or start it on another port (see "Using a different port" below) and open <http://localhost:8080> |
 | `SyntaxError: Unexpected token` on startup | Your Node is older than 18 — run `node --version` to confirm |
 | Browser says "can't connect" | The server isn't running. Check the terminal for the "running at" line |
 | A blank white page | You opened `index.html` as a file. Use the `http://localhost:4173` address instead |

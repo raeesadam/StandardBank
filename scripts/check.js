@@ -35,8 +35,9 @@ try {
   record(true, 'The data folder is writable', dataDir);
 } catch (error) {
   record(false, 'The data folder cannot be written to',
-    `${dataDir} - ${error.message}. Set RCM_DB_PATH to a folder you can write to, ` +
-    'for example: RCM_DB_PATH=%USERPROFILE%\\rcm.json npm start');
+    `${dataDir} - ${error.message}. Point RCM_DB_PATH at a folder you can write to - ` +
+    'PowerShell: $env:RCM_DB_PATH="$HOME\\rcm.json"; npm start  |  ' +
+    'macOS or Linux: RCM_DB_PATH=~/rcm.json npm start');
 }
 
 /* 3. A free port to listen on. */
@@ -51,7 +52,10 @@ if (portFree) {
 } else {
   record(false, `Port ${PORT} is already in use`,
     'either something else is using it, or the platform is already running. ' +
-    `To use a different port: PORT=8080 npm start (then open http://localhost:8080)`);
+    'To use a different port, then open http://localhost:8080 - ' +
+    'PowerShell: $env:PORT=8080; npm start  |  ' +
+    'Command Prompt: set PORT=8080 && npm start  |  ' +
+    'macOS or Linux: PORT=8080 npm start');
 }
 
 /* 4. Is there data to look at? */
