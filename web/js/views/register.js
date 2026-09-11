@@ -1,20 +1,15 @@
 import { api } from '../api.js';
 import { el, clear, fmtNumber, fmtDate, fmtPercent, pill, debounce,
-         severityTone, themeStatusTone, trendTone, trendGlyph } from '../util.js';
+         severityTone, themeStatusTone, trendTone, trendGlyph, trendLabel } from '../util.js';
+import { t, label, options as enumOptions } from '../i18n.js';
 import { loading, emptyState, openFormModal, toast } from '../ui.js';
 import { state, withActor } from '../state.js';
 import { themeFields } from '../forms.js';
 import { navigate, currentPath, replacePath } from '../router.js';
 
-const SORTS = [
-  { value: 'volume', label: 'Most complaints (last 6 periods)' },
-  { value: 'severity', label: 'Severity' },
-  { value: 'open_actions', label: 'Open actions' },
-  { value: 'last_reported', label: 'Most recently reported' },
-  { value: 'updated', label: 'Recently updated' },
-  { value: 'reference', label: 'Reference' },
-  { value: 'title', label: 'Title' },
-];
+const SORT_KEYS = ['volume', 'severity', 'open_actions', 'last_reported', 'updated', 'reference', 'title'];
+const sortOptions = () =>
+  SORT_KEYS.map((value) => ({ value, label: t(`register.sort.${value}`) }));
 
 export async function renderRegister(host, query = {}) {
   clear(host);
@@ -35,17 +30,14 @@ export async function renderRegister(host, query = {}) {
 
   host.appendChild(el('div', { class: 'page-head' }, [
     el('div', { class: 'page-head__text' }, [
-      el('h1', { text: 'Recurrent complaint register' }),
-      el('div', {
-        class: 'page-head__sub',
-        text: 'Every recurring complaint the bank monitors, with its history, root causes, actions and linked incidents.',
-      }),
+      el('h1', { text: t('register.title') }),
+      el('div', { class: 'page-head__sub', text: t('register.subtitle') }),
     ]),
     el('div', {}, [
       el('button', {
         class: 'btn btn--primary', type: 'button',
         onclick: () => openThemeForm(null, () => load()),
-      }, '+ New recurrent complaint'),
+      }, t('register.new')),
     ]),
   ]));
 
@@ -53,14 +45,14 @@ export async function renderRegister(host, query = {}) {
   host.appendChild(results);
 
   async function load() {
-    clear(results).appendChild(loading('Loading the register…'));
+    clear(results).appendChild(loading(t('register.loading')));
     pushFilters(filters);
     try {
       const themes = await api.listThemes(filters);
       clear(results);
       results.appendChild(summaryLine(themes));
       results.appendChild(themes.length === 0
-        ? emptyState('No recurrent complaint matches these filters.', 'Register a new one',
+        ? emptyState(t('register.empty'), t('register.emptyAction'),
             () => openThemeForm(null, () => load()))
         : table(themes));
     } catch (error) {
@@ -84,52 +76,55 @@ function filterBar(filters, onChange) {
   const m = state.meta || {};
   const apply = debounce(onChange, 240);
 
-  const select = (name, label, options) => el('select', {
-    'aria-label': label,
+  const select = (name, anyLabel, values) => el('select', {
+    'aria-label': anyLabel,
     onchange: (event) => { filters[name] = event.target.value; onChange(); },
   }, [
-    el('option', { value: '', text: label }),
-    ...options.map((option) => el('option', {
-      value: option, text: option, selected: filters[name] === option,
+    el('option', { value: '', text: anyLabel }),
+    ...enumOptions(values).map((option) => el('option', {
+      value: option.value, text: option.label, selected: filters[name] === option.value,
     })),
   ]);
 
-  const toggle = (name, label) => el('label', { class: 'switch' }, [
+  const toggle = (name, text) => el('label', { class: 'switch' }, [
     el('input', {
       type: 'checkbox', checked: filters[name],
       onchange: (event) => { filters[name] = event.target.checked; onChange(); },
     }),
-    el('span', { text: label }),
+    el('span', { text }),
   ]);
 
   return el('div', { class: 'filters', role: 'search' }, [
     el('input', {
-      type: 'search', placeholder: 'Search title, description, reference or owner…',
-      value: filters.search, 'aria-label': 'Search recurrent complaints',
+      type: 'search', placeholder: t('register.search'),
+      value: filters.search, 'aria-label': t('register.searchLabel'),
       oninput: (event) => { filters.search = event.target.value; apply(); },
     }),
-    select('status', 'Any status', m.themeStatuses || []),
-    select('product', 'Any product', m.products || []),
-    select('channel', 'Any channel', m.channels || []),
-    select('severity', 'Any severity', m.severities || []),
+    select('status', t('register.anyStatus'), m.themeStatuses || []),
+    select('product', t('register.anyProduct'), m.products || []),
+    select('channel', t('register.anyChannel'), m.channels || []),
+    select('severity', t('register.anySeverity'), m.severities || []),
     el('select', {
-      'aria-label': 'Sort by',
+      'aria-label': t('register.sortLabel'),
       onchange: (event) => { filters.sort = event.target.value; onChange(); },
-    }, SORTS.map((sort) => el('option', {
+    }, sortOptions().map((sort) => el('option', {
       value: sort.value, text: sort.label, selected: filters.sort === sort.value,
     }))),
-    toggle('open', 'Open only'),
-    toggle('watchlist', 'Watchlist'),
-    toggle('regulatory', 'Regulatory'),
+    toggle('open', t('register.openOnly')),
+    toggle('watchlist', t('register.watchlist')),
+    toggle('regulatory', t('register.regulatory')),
   ]);
 }
 
 function summaryLine(themes) {
   const complaints = themes.reduce((acc, t) => acc + t.volume_recent, 0);
   const rising = themes.filter((t) => t.trend === 'Increasing').length;
-  return el('div', { class: 'small muted', style: { margin: '0 2px 10px' } , text:
-    `${themes.length} recurrent complaint${themes.length === 1 ? '' : 's'} · ` +
-    `${fmtNumber(complaints)} complaints in the last 6 monitoring periods · ${rising} trending up` });
+  return el('div', {
+    class: 'small muted', style: { margin: '0 2px 10px' },
+    text: t('register.summary', {
+      count: themes.length, volume: fmtNumber(complaints), rising,
+    }),
+  });
 }
 
 function table(themes) {
@@ -137,16 +132,16 @@ function table(themes) {
     el('div', { class: 'table-wrap' }, [
       el('table', {}, [
         el('thead', {}, [el('tr', {}, [
-          el('th', { text: 'Reference' }),
-          el('th', { class: 'col-title', text: 'Recurrent complaint' }),
-          el('th', { text: 'Severity' }),
-          el('th', { text: 'Status' }),
-          el('th', { class: 'num', text: 'Last 6 periods' }),
-          el('th', { text: 'Trend' }),
-          el('th', { class: 'num', text: 'Causes' }),
-          el('th', { class: 'num', text: 'Actions' }),
-          el('th', { class: 'num', text: 'Incidents' }),
-          el('th', { text: 'Product owner' }),
+          el('th', { text: t('register.col.reference') }),
+          el('th', { class: 'col-title', text: t('register.col.complaint') }),
+          el('th', { text: t('register.col.severity') }),
+          el('th', { text: t('register.col.status') }),
+          el('th', { class: 'num', text: t('register.col.volume') }),
+          el('th', { text: t('register.col.trend') }),
+          el('th', { class: 'num', text: t('register.col.causes') }),
+          el('th', { class: 'num', text: t('register.col.actions') }),
+          el('th', { class: 'num', text: t('register.col.incidents') }),
+          el('th', { text: t('register.col.owner') }),
         ])]),
         el('tbody', {}, themes.map(rowFor)),
       ]),
@@ -163,38 +158,47 @@ function rowFor(theme) {
     el('td', { class: 'nowrap' }, [
       el('div', { class: 'detail-ref', text: theme.reference }),
       el('div', { class: 'badges', style: { marginTop: '4px' } }, [
-        theme.regulatory_risk ? pill('Regulatory', 'serious') : null,
-        theme.watchlist ? pill('Watchlist', 'accent') : null,
+        theme.regulatory_risk ? pill(t('register.regulatory'), 'serious') : null,
+        theme.watchlist ? pill(t('register.watchlist'), 'accent') : null,
       ]),
     ]),
     el('td', { class: 'col-title' }, [
       el('div', { class: 'cell-title', text: theme.title }),
-      el('div', { class: 'cell-sub', text: `${theme.product} · ${theme.channel} · ${theme.category}` }),
-      el('div', { class: 'cell-sub', text: `Last reported ${fmtDate(theme.last_reported_on)}` }),
+      el('div', {
+        class: 'cell-sub',
+        text: `${label(theme.product)} · ${label(theme.channel)} · ${label(theme.category)}`,
+      }),
+      el('div', {
+        class: 'cell-sub',
+        text: t('register.lastReported', { date: fmtDate(theme.last_reported_on) }),
+      }),
     ]),
-    el('td', {}, [pill(theme.severity, severityTone(theme.severity), { dot: true })]),
-    el('td', {}, [pill(theme.status, themeStatusTone(theme.status), { dot: true })]),
+    el('td', {}, [pill(label(theme.severity), severityTone(theme.severity), { dot: true })]),
+    el('td', {}, [pill(label(theme.status), themeStatusTone(theme.status), { dot: true })]),
     el('td', { class: 'num nowrap' }, [
       el('div', { text: fmtNumber(theme.volume_recent) }),
-      el('div', { class: 'cell-sub', text: `${fmtNumber(theme.volume_total)} all time` }),
+      el('div', { class: 'cell-sub', text: t('register.allTime', { count: fmtNumber(theme.volume_total) }) }),
     ]),
     el('td', {}, [
-      pill(theme.change_pct === null ? theme.trend : fmtPercent(theme.change_pct, { signed: true }),
+      pill(theme.change_pct === null ? trendLabel(theme.trend) : fmtPercent(theme.change_pct, { signed: true }),
         trendTone(theme.trend), { glyph: trendGlyph(theme.trend) }),
     ]),
     el('td', { class: 'num nowrap' }, [
       el('div', { text: fmtNumber(theme.root_cause_count) }),
-      el('div', { class: 'cell-sub', text: `${theme.confirmed_cause_count} confirmed` }),
+      el('div', { class: 'cell-sub', text: t('register.confirmed', { count: theme.confirmed_cause_count }) }),
     ]),
     el('td', { class: 'num nowrap' }, [
-      el('div', { text: `${fmtNumber(theme.open_actions)} open` }),
+      el('div', { text: t('register.openCount', { count: fmtNumber(theme.open_actions) }) }),
       theme.overdue_actions > 0
-        ? el('div', { class: 'cell-sub', style: { color: 'var(--critical)' }, text: `${theme.overdue_actions} overdue` })
-        : el('div', { class: 'cell-sub', text: `${theme.completed_actions} done` }),
+        ? el('div', {
+            class: 'cell-sub', style: { color: 'var(--critical)' },
+            text: t('register.overdueCount', { count: theme.overdue_actions }),
+          })
+        : el('div', { class: 'cell-sub', text: t('register.doneCount', { count: theme.completed_actions }) }),
     ]),
     el('td', { class: 'num', text: fmtNumber(theme.incident_count) }),
     el('td', {}, [
-      el('div', { text: theme.product_owner || '—' }),
+      el('div', { text: theme.product_owner || t('common.none') }),
       el('div', { class: 'cell-sub', text: theme.business_unit || '' }),
     ]),
   ]);
@@ -204,15 +208,15 @@ function rowFor(theme) {
 export function openThemeForm(theme, onSaved) {
   const isNew = !theme;
   openFormModal({
-    title: isNew ? 'Register a recurrent complaint' : `Edit ${theme.reference}`,
+    title: isNew ? t('form.themeCreate') : t('form.themeEdit', { reference: theme.reference }),
     fields: themeFields(),
     values: theme || {},
-    submitLabel: isNew ? 'Register complaint' : 'Save changes',
+    submitLabel: isNew ? t('form.themeSubmit') : t('common.save'),
     onSubmit: async (values) => {
       const saved = isNew
         ? await api.createTheme(withActor(values))
         : await api.updateTheme(theme.id, withActor(values));
-      toast(isNew ? `${saved.reference} registered.` : 'Complaint theme updated.', 'success');
+      toast(isNew ? t('theme.registered', { reference: saved.reference }) : t('theme.updated'), 'success');
       await onSaved?.(saved);
       if (isNew) navigate(`/themes/${saved.id}`);
     },

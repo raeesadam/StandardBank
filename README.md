@@ -1,5 +1,7 @@
 # Recurrent Complaints Management
 
+*[Versão em português](README.pt.md) · [Guia de instalação](SETUP.pt.md)*
+
 A platform for tracking the complaints that keep coming back — not individual customer
 cases, but the **recurrent complaint themes** the bank monitors month after month, together
 with everything that explains them: the volume history, the root causes, the actions
@@ -14,9 +16,9 @@ install. It runs the real application code against a register held in memory, so
 form, validation rule and audit-trail entry behaves exactly as it does locally. Nothing is
 saved; reload for a clean register.
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](docs/screenshots/dashboard-pt.png)
 
-_More screens: [the register](docs/screenshots/register.png) · [a recurrent complaint in detail](docs/screenshots/complaint-detail.png)_
+_More screens: [the register](docs/screenshots/register.png) · [a recurrent complaint in detail](docs/screenshots/complaint-detail-pt.png) · [dark](docs/screenshots/dashboard-pt-dark.png)_
 
 ## What it tracks
 
@@ -31,6 +33,10 @@ _More screens: [the register](docs/screenshots/register.png) · [a recurrent com
 | **Full history** | An append-only audit trail. Every create, update and delete is recorded with a field-level diff and the name of the person who made it. |
 
 ## Running it
+
+The interface ships in **Portuguese (pt-PT) and English**, switchable in the header;
+stored values stay canonical so changing language never rewrites data. See
+[README.pt.md](README.pt.md) for the Portuguese documentation.
 
 **Node 16.17 or later. Nothing to install** — no dependencies, no build step, no database
 server. The backend is Node's built-in HTTP server; the front end is plain ES modules.

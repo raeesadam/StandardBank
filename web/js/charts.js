@@ -1,4 +1,5 @@
 import { el, svg, clear, fmtNumber } from './util.js';
+import { t } from './i18n.js';
 
 /* Series colours are read from the stylesheet so the charts follow the
  * light/dark token swap instead of hard-coding hex values. */
@@ -112,11 +113,11 @@ function tableToggle(columns, rows) {
     onclick: () => {
       const showing = wrap.hidden;
       wrap.hidden = !showing;
-      button.textContent = showing ? 'Hide table' : 'Show table';
+      button.textContent = showing ? t('common.hideTable') : t('common.showTable');
       button.setAttribute('aria-expanded', String(showing));
       if (showing && wrap.childElementCount === 0) wrap.appendChild(buildTable(columns, rows()));
     },
-  }, 'Show table');
+  }, t('common.showTable'));
   return { toggle: el('div', { class: 'chart__toggle' }, [button]), wrap };
 }
 
@@ -142,11 +143,11 @@ export function lineChart({
   emphasiseLast = true,
 }) {
   if (!points || points.length === 0) {
-    return el('div', { class: 'empty', text: 'No monitoring data captured yet.' });
+    return el('div', { class: 'empty', text: t('common.noMonitoringData') });
   }
 
   const tableColumns = [
-    { key: 'label', label: 'Period' },
+    { key: 'label', label: t('common.period') },
     ...series.map((s) => ({ key: s.key, label: s.name, numeric: true })),
   ];
   const tableRows = () => points.map((p) => ({
@@ -335,14 +336,14 @@ export function lineChart({
  */
 export function barChart({
   rows, formatValue = fmtNumber, color = seriesColor(1), labelWidth = 200,
-  valueLabel = 'Value', barHeight = 20, gap = 10,
+  valueLabel = t('common.value'), barHeight = 20, gap = 10,
 }) {
   if (!rows || rows.length === 0) {
-    return el('div', { class: 'empty', text: 'Nothing to show yet.' });
+    return el('div', { class: 'empty', text: t('common.nothingYet') });
   }
 
   const { toggle, wrap } = tableToggle(
-    [{ key: 'label', label: 'Item' }, { key: 'value', label: valueLabel, numeric: true }],
+    [{ key: 'label', label: t('common.item') }, { key: 'value', label: valueLabel, numeric: true }],
     () => rows.map((r) => ({ label: r.label, value: formatValue(r.value) })),
   );
 

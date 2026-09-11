@@ -4,6 +4,7 @@
  * viewer blocks - and explains where it does work.
  */
 import { toast } from './ui.js';
+import { t } from './i18n.js';
 
 function adaptExportControl() {
   const link = document.querySelector('.topbar a[href="/api/export"]');
@@ -12,11 +13,9 @@ function adaptExportControl() {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'btn btn--sm';
-  button.textContent = 'Export';
-  button.title = 'Available in the installed platform';
-  button.addEventListener('click', () => {
-    toast('Export downloads a JSON file of every record when you run the platform locally.');
-  });
+  button.textContent = t('chrome.export');
+  button.title = t('demo.exportTitle');
+  button.addEventListener('click', () => toast(t('demo.exportHint')));
   link.replaceWith(button);
   return true;
 }

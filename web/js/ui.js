@@ -1,4 +1,5 @@
 import { el, clear } from './util.js';
+import { t } from './i18n.js';
 
 /* --------------------------------- toasts ------------------------------ */
 
@@ -41,7 +42,10 @@ export function openModal({ title, body, footer, onClose, width }) {
   }, [
     el('div', { class: 'modal__head' }, [
       el('h2', { text: title }),
-      el('button', { class: 'btn btn--ghost btn--sm', type: 'button', 'aria-label': 'Close', onclick: close }, '✕'),
+      el('button', {
+        class: 'btn btn--ghost btn--sm', type: 'button',
+        'aria-label': t('common.close'), onclick: close,
+      }, '✕'),
     ]),
     el('div', { class: 'modal__body' }, body),
     footer ? el('div', { class: 'modal__foot' }, footer) : null,
@@ -74,7 +78,7 @@ function trapFocus(event, container) {
   }
 }
 
-export function confirmDialog({ title, message, confirmLabel = 'Delete', danger = true }) {
+export function confirmDialog({ title, message, confirmLabel, danger = true }) {
   return new Promise((resolve) => {
     let settled = false;
     const done = (value) => { if (!settled) { settled = true; resolve(value); } };
@@ -87,11 +91,11 @@ export function confirmDialog({ title, message, confirmLabel = 'Delete', danger 
         el('button', {
           class: 'btn', type: 'button',
           onclick: () => { done(false); close(); },
-        }, 'Cancel'),
+        }, t('common.cancel')),
         el('button', {
           class: `btn ${danger ? 'btn--danger' : 'btn--primary'}`, type: 'button',
           onclick: () => { done(true); close(); },
-        }, confirmLabel),
+        }, confirmLabel || t('common.delete')),
       ],
       onClose: () => done(false),
     });
@@ -118,7 +122,7 @@ export function buildForm(fields, values = {}) {
     if (field.type === 'select') {
       input = el('select', { id, name: field.name },
         [
-          field.allowEmpty ? el('option', { value: '', text: field.emptyLabel || '— none —' }) : null,
+          field.allowEmpty ? el('option', { value: '', text: field.emptyLabel || t('form.noneOption') }) : null,
           ...(field.options || []).map((option) => {
             const optValue = typeof option === 'object' ? String(option.value) : String(option);
             const optLabel = typeof option === 'object' ? option.label : String(option);
@@ -203,9 +207,10 @@ export function buildForm(fields, values = {}) {
  * Standard create/edit dialog: builds the form, wires Save, surfaces
  * field-level validation returned by the API back onto the inputs.
  */
-export function openFormModal({ title, fields, values, submitLabel = 'Save', onSubmit, width = '680px' }) {
+export function openFormModal({ title, fields, values, submitLabel, onSubmit, width = '680px' }) {
   const { form, values: readValues, showErrors } = buildForm(fields, values);
-  const saveBtn = el('button', { class: 'btn btn--primary', type: 'submit' }, submitLabel);
+  const saveBtn = el('button', { class: 'btn btn--primary', type: 'submit' },
+    submitLabel || t('common.save'));
 
   const submit = async (event) => {
     event?.preventDefault();
@@ -214,7 +219,7 @@ export function openFormModal({ title, fields, values, submitLabel = 'Save', onS
       await onSubmit(readValues());
       close();
     } catch (error) {
-      showErrors(error.fields || {}, error.fields ? 'Please correct the highlighted fields.' : error.message);
+      showErrors(error.fields || {}, error.fields ? t('common.formErrors') : error.message);
     } finally {
       saveBtn.disabled = false;
     }
@@ -226,7 +231,7 @@ export function openFormModal({ title, fields, values, submitLabel = 'Save', onS
     title, width,
     body: [form],
     footer: [
-      el('button', { class: 'btn', type: 'button', onclick: () => close() }, 'Cancel'),
+      el('button', { class: 'btn', type: 'button', onclick: () => close() }, t('common.cancel')),
       saveBtn,
     ],
   });
@@ -250,8 +255,8 @@ export function emptyState(message, actionLabel, onAction) {
   ]);
 }
 
-export function loading(message = 'Loading…') {
-  return el('div', { class: 'loading', text: message });
+export function loading(message) {
+  return el('div', { class: 'loading', text: message || t('common.loading') });
 }
 
 export function sectionHead(title, subtitle, actions = []) {

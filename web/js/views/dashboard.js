@@ -1,27 +1,31 @@
 import { api } from '../api.js';
 import { el, clear, fmtNumber, fmtMoney, fmtPercent, fmtDate, fmtRelative, pill,
          trendGlyph } from '../util.js';
+import { t, label, activityText } from '../i18n.js';
 import { lineChart, barChart, distribution, sparkline, seriesColor } from '../charts.js';
 import { loading } from '../ui.js';
 import { navigate } from '../router.js';
 
 export async function renderDashboard(host) {
-  clear(host).appendChild(loading('Loading the complaints picture…'));
+  clear(host).appendChild(loading());
   const data = await api.dashboard({ months: 12 });
   clear(host);
 
   host.appendChild(el('div', { class: 'page-head' }, [
     el('div', { class: 'page-head__text' }, [
-      el('h1', { text: 'Recurrent complaints overview' }),
+      el('h1', { text: t('dashboard.title') }),
       el('div', {
         class: 'page-head__sub',
-        text: `${data.kpis.openThemes} open recurrent complaints on the register · monitoring period ${data.kpis.latestPeriodLabel || '—'}`,
+        text: t('dashboard.subtitle', {
+          open: data.kpis.openThemes,
+          period: data.kpis.latestPeriodLabel || t('common.none'),
+        }),
       }),
     ]),
     el('div', {}, [
       el('button', {
         class: 'btn', type: 'button', onclick: () => navigate('/register'),
-      }, 'Open the register →'),
+      }, t('dashboard.openRegister')),
     ]),
   ]));
 
@@ -52,21 +56,26 @@ function kpiRow(data) {
 
   return el('div', { class: 'grid grid--kpi' }, [
     el('div', { class: 'stat' }, [
-      el('div', { class: 'stat__label', text: `Complaints in ${k.latestPeriodLabel || 'the latest period'}` }),
+      el('div', {
+        class: 'stat__label',
+        text: t('dashboard.kpi.latest', { period: k.latestPeriodLabel || t('dashboard.kpi.latestFallback') }),
+      }),
       el('div', { class: 'stat__value stat__value--hero', text: fmtNumber(k.complaintsLatestPeriod) }),
-      deltaLine(delta, 'vs previous period'),
+      deltaLine(delta, t('dashboard.kpi.vsPrevious')),
       el('div', { style: { marginTop: '6px' } }, [sparkline(series)]),
     ]),
-    statTile('Open recurrent complaints', fmtNumber(k.openThemes),
-      `${fmtNumber(k.totalThemes)} on the register in total`),
-    statTile('Themes trending up', fmtNumber(k.increasing),
-      'last 6 periods vs the 6 before', k.increasing > 0 ? 'critical' : null),
-    statTile('Open actions', fmtNumber(k.openActions),
-      `${fmtNumber(k.overdueActions)} overdue · ${fmtNumber(k.completedActions)} completed`,
+    statTile(t('dashboard.kpi.open'), fmtNumber(k.openThemes),
+      t('dashboard.kpi.openMeta', { total: fmtNumber(k.totalThemes) })),
+    statTile(t('dashboard.kpi.rising'), fmtNumber(k.increasing),
+      t('dashboard.kpi.risingMeta'), k.increasing > 0 ? 'critical' : null),
+    statTile(t('dashboard.kpi.actions'), fmtNumber(k.openActions),
+      t('dashboard.kpi.actionsMeta', {
+        overdue: fmtNumber(k.overdueActions), done: fmtNumber(k.completedActions),
+      }),
       k.overdueActions > 0 ? 'serious' : null),
-    statTile('Refunds & goodwill', fmtMoney(k.financialImpact), 'across all monitoring periods'),
-    statTile('Regulatory exposure', fmtNumber(k.regulatory),
-      `${fmtNumber(k.watchlist)} on the executive watchlist`,
+    statTile(t('dashboard.kpi.money'), fmtMoney(k.financialImpact), t('dashboard.kpi.moneyMeta')),
+    statTile(t('dashboard.kpi.regulatory'), fmtNumber(k.regulatory),
+      t('dashboard.kpi.regulatoryMeta', { watchlist: fmtNumber(k.watchlist) }),
       k.regulatory > 0 ? 'serious' : null),
   ]);
 }
@@ -84,7 +93,7 @@ function statTile(label, value, meta, tone) {
 
 function deltaLine(delta, suffix) {
   if (delta === null || !Number.isFinite(delta)) {
-    return el('div', { class: 'stat__meta', text: 'No comparable prior period' });
+    return el('div', { class: 'stat__meta', text: t('dashboard.kpi.noPrior') });
   }
   const direction = delta > 2 ? 'up' : delta < -2 ? 'down' : 'flat';
   const glyph = { up: '▲', down: '▼', flat: '◆' }[direction];
@@ -104,14 +113,14 @@ function volumeCard(data) {
 
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Complaint volume across all recurrent themes' }),
-      el('div', { class: 'card__sub', text: 'Received against resolved, by monitoring period' }),
+      el('h3', { text: t('dashboard.volume.title') }),
+      el('div', { class: 'card__sub', text: t('dashboard.volume.subtitle') }),
     ]),
     lineChart({
       points,
       series: [
-        { key: 'complaints', name: 'Received', color: seriesColor(1) },
-        { key: 'resolved', name: 'Resolved', color: seriesColor(2) },
+        { key: 'complaints', name: t('dashboard.series.received'), color: seriesColor(1) },
+        { key: 'resolved', name: t('dashboard.series.resolved'), color: seriesColor(2) },
       ],
       height: 260,
     }),
@@ -122,46 +131,48 @@ function topThemesCard(data) {
   const rows = data.topThemes.map((theme) => ({
     label: theme.title,
     value: theme.volume_recent,
-    sublabel: 'Complaints, last 6 periods',
+    sublabel: t('dashboard.top.tooltip'),
     onClick: () => navigate(`/themes/${theme.id}`),
   }));
 
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Most recurrent complaints' }),
-      el('div', { class: 'card__sub', text: 'Volume over the last 6 monitoring periods · select a bar to open the theme' }),
+      el('h3', { text: t('dashboard.top.title') }),
+      el('div', { class: 'card__sub', text: t('dashboard.top.subtitle') }),
     ]),
-    barChart({ rows, valueLabel: 'Complaints', color: seriesColor(1) }),
+    barChart({ rows, valueLabel: t('common.complaints'), color: seriesColor(1) }),
   ]);
 }
 
 function rootCauseCard(data) {
-  const rows = data.rootCauseCategories.map((row) => ({ label: row.label, value: row.count }));
+  const rows = data.rootCauseCategories.map((row) => ({ label: label(row.label), value: row.count }));
   const total = data.rootCauseCategories.reduce((acc, row) => acc + row.count, 0);
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Root causes by category' }),
+      el('h3', { text: t('dashboard.causes.title') }),
       el('div', {
         class: 'card__sub',
-        text: `${fmtNumber(total)} documented across the register · `
-          + `${fmtNumber(data.kpis.confirmedRootCauses)} confirmed · `
-          + `${fmtNumber(data.kpis.linkedIncidents)} linked incidents`,
+        text: t('dashboard.causes.subtitle', {
+          total: fmtNumber(total),
+          confirmed: fmtNumber(data.kpis.confirmedRootCauses),
+          incidents: fmtNumber(data.kpis.linkedIncidents),
+        }),
       }),
     ]),
-    barChart({ rows, valueLabel: 'Root causes', color: seriesColor(1), barHeight: 16, gap: 8 }),
+    barChart({ rows, valueLabel: t('dashboard.causes.unit'), color: seriesColor(1), barHeight: 16, gap: 8 }),
   ]);
 }
 
 function actionsCard(data) {
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Product owner actions' }),
-      el('div', { class: 'card__sub', text: 'Every action proposed, by current status' }),
+      el('h3', { text: t('dashboard.actions.title') }),
+      el('div', { class: 'card__sub', text: t('dashboard.actions.subtitle') }),
     ]),
-    distribution(data.actionsByStatus),
+    distribution(translateCounts(data.actionsByStatus)),
     data.actionEffectiveness.length > 0 ? el('div', { style: { marginTop: '16px' } }, [
-      el('h4', { class: 'muted', text: 'Effectiveness of completed actions' }),
-      el('div', { style: { marginTop: '8px' } }, [distribution(data.actionEffectiveness)]),
+      el('h4', { class: 'muted', text: t('dashboard.actions.effectiveness') }),
+      el('div', { style: { marginTop: '8px' } }, [distribution(translateCounts(data.actionEffectiveness))]),
     ]) : null,
   ]);
 }
@@ -170,7 +181,7 @@ function actionsCard(data) {
 
 function trendingCard(data) {
   const body = data.increasingThemes.length === 0
-    ? el('div', { class: 'empty', text: 'No theme is trending up right now.' })
+    ? el('div', { class: 'empty', text: t('dashboard.trending.empty') })
     : el('div', { class: 'stack scroll-panel', style: { gap: '10px' } }, data.increasingThemes.map((theme) =>
         el('div', {
           class: 'record', tabindex: 0, role: 'link',
@@ -185,15 +196,15 @@ function trendingCard(data) {
           ]),
           el('div', { class: 'record__meta' }, [
             el('span', { text: theme.reference }),
-            el('span', { text: `${fmtNumber(theme.volume_recent)} complaints, last 6 periods` }),
-            el('span', { text: theme.product_owner || 'No product owner' }),
+            el('span', { text: t('dashboard.trending.volume', { count: fmtNumber(theme.volume_recent) }) }),
+            el('span', { text: theme.product_owner || t('common.noOwner') }),
           ]),
         ])));
 
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Trending up' }),
-      el('div', { class: 'card__sub', text: 'Last 6 periods at least 15% above the 6 before' }),
+      el('h3', { text: t('dashboard.trending.title') }),
+      el('div', { class: 'card__sub', text: t('dashboard.trending.subtitle') }),
     ]),
     body,
   ]);
@@ -201,29 +212,32 @@ function trendingCard(data) {
 
 function overdueCard(data) {
   const body = data.overdueActions.length === 0
-    ? el('div', { class: 'empty', text: 'No action has passed its due date.' })
+    ? el('div', { class: 'empty', text: t('dashboard.overdue.empty') })
     : el('div', { class: 'table-wrap' }, [
         el('table', {}, [
           el('thead', {}, [el('tr', {}, [
-            el('th', { class: 'col-title', text: 'Action' }), el('th', { text: 'Recurrent complaint' }),
-            el('th', { text: 'Owner' }), el('th', { text: 'Due' }), el('th', { text: 'Status' }),
+            el('th', { class: 'col-title', text: t('dashboard.overdue.action') }),
+            el('th', { text: t('dashboard.overdue.theme') }),
+            el('th', { text: t('dashboard.overdue.owner') }),
+            el('th', { text: t('dashboard.overdue.due') }),
+            el('th', { text: t('dashboard.overdue.status') }),
           ])]),
           el('tbody', {}, data.overdueActions.map((action) => el('tr', {
             class: 'row-link', onclick: () => navigate(`/themes/${action.theme_id}?tab=actions`),
           }, [
             el('td', { class: 'col-title' }, [el('div', { class: 'cell-title', text: action.title })]),
             el('td', {}, [el('div', { class: 'cell-sub', text: `${action.reference} · ${action.theme_title}` })]),
-            el('td', { text: action.proposed_by || '—' }),
+            el('td', { text: action.proposed_by || t('common.none') }),
             el('td', {}, [pill(fmtDate(action.due_date), 'critical')]),
-            el('td', {}, [pill(action.status, 'muted')]),
+            el('td', {}, [pill(label(action.status), 'muted')]),
           ]))),
         ]),
       ]);
 
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Overdue actions' }),
-      el('div', { class: 'card__sub', text: 'Proposed actions past their due date and not yet completed' }),
+      el('h3', { text: t('dashboard.overdue.title') }),
+      el('div', { class: 'card__sub', text: t('dashboard.overdue.subtitle') }),
     ]),
     body,
   ]);
@@ -232,19 +246,24 @@ function overdueCard(data) {
 function activityCard(data) {
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
-      el('h3', { text: 'Latest activity' }),
-      el('div', { class: 'card__sub', text: 'Everything captured on the platform, newest first' }),
+      el('h3', { text: t('dashboard.activity.title') }),
+      el('div', { class: 'card__sub', text: t('dashboard.activity.subtitle') }),
     ]),
     el('div', { class: 'timeline', style: { maxHeight: '420px', overflowY: 'auto' } },
       data.recentActivity.map((entry) => el('div', {
         class: `timeline__item timeline__item--${entry.action}`,
       }, [
         el('div', { class: 'timeline__when', text: `${fmtDate(entry.created_at)} · ${fmtRelative(entry.created_at)}` }),
-        el('div', { class: 'timeline__what', text: entry.summary }),
+        el('div', { class: 'timeline__what', text: activityText(entry) }),
         el('div', { class: 'timeline__who' }, [
           el('span', { text: entry.actor }),
           entry.reference ? el('span', { class: 'muted', text: ` · ${entry.reference}` }) : null,
         ]),
       ]))),
   ]);
+}
+
+/** Distribution rows carry stored vocabulary values; show their labels. */
+function translateCounts(rows) {
+  return rows.map((row) => ({ ...row, label: label(row.label) }));
 }

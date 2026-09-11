@@ -1,3 +1,5 @@
+import { t, locale, label } from './i18n.js';
+
 /** Tiny DOM builder. Everything goes in as text nodes, so record content
  *  typed by users is never parsed as HTML. */
 export function el(tag, props = {}, children = []) {
@@ -45,26 +47,33 @@ export function clear(node) {
 }
 
 /* ------------------------------ formatting ----------------------------- */
+/* Formatters are built per call against the active locale, so switching
+ * language reformats dates and numbers along with the labels. */
 
-const numberFmt = new Intl.NumberFormat('en-ZA');
-const moneyFmt = new Intl.NumberFormat('en-ZA', {
-  style: 'currency', currency: 'ZAR', maximumFractionDigits: 0,
-});
+const formatters = new Map();
+function formatter(kind, options) {
+  const key = `${kind}:${locale()}`;
+  if (!formatters.has(key)) formatters.set(key, new Intl.NumberFormat(locale(), options));
+  return formatters.get(key);
+}
 
-export const fmtNumber = (value) => numberFmt.format(Math.round(Number(value) || 0));
+export const fmtNumber = (value) =>
+  formatter('number').format(Math.round(Number(value) || 0));
 
 export function fmtMoney(value) {
   const num = Number(value) || 0;
   if (Math.abs(num) >= 1_000_000) return `R${(num / 1_000_000).toFixed(1)}m`;
   if (Math.abs(num) >= 1_000) return `R${(num / 1_000).toFixed(0)}k`;
-  return moneyFmt.format(num);
+  return formatter('money', {
+    style: 'currency', currency: 'ZAR', maximumFractionDigits: 0,
+  }).format(num);
 }
 
 export function fmtDate(value) {
   if (!value) return '—';
   const date = new Date(value.length <= 10 ? `${value}T00:00:00Z` : value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-ZA', {
+  return date.toLocaleDateString(locale(), {
     day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
   });
 }
@@ -73,7 +82,7 @@ export function fmtDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('en-ZA', {
+  return date.toLocaleString(locale(), {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 }
@@ -83,11 +92,11 @@ export function fmtRelative(value) {
   const then = new Date(value).getTime();
   if (Number.isNaN(then)) return '';
   const days = Math.round((Date.now() - then) / 86400000);
-  if (days <= 0) return 'today';
-  if (days === 1) return 'yesterday';
-  if (days < 30) return `${days} days ago`;
-  if (days < 365) return `${Math.round(days / 30)} months ago`;
-  return `${Math.round(days / 365)} years ago`;
+  if (days <= 0) return t('date.relative.today');
+  if (days === 1) return t('date.relative.yesterday');
+  if (days < 30) return t('date.relative.days', { count: days });
+  if (days < 365) return t('date.relative.months', { count: Math.round(days / 30) });
+  return t('date.relative.years', { count: Math.round(days / 365) });
 }
 
 export function fmtPercent(value, { signed = false } = {}) {
@@ -161,6 +170,8 @@ export function pill(text, tone = 'muted', { dot = false, glyph = '' } = {}) {
     el('span', { text }),
   ]);
 }
+
+export const trendLabel = (trend) => t(`trend.${trend}`);
 
 export const trendGlyph = (trend) =>
   ({ Increasing: '▲', Decreasing: '▼', Stable: '◆' }[trend] || '·');

@@ -1,5 +1,6 @@
 import { el, clear } from './util.js';
 import { loadMeta, state, setActor, initTheme, toggleTheme } from './state.js';
+import { t, LANGUAGES, getLanguage, setLanguage } from './i18n.js';
 import { route, setNotFound, resolve, navigate } from './router.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderRegister } from './views/register.js';
@@ -7,29 +8,48 @@ import { renderTheme } from './views/theme.js';
 import { toast } from './ui.js';
 
 const NAV = [
-  { path: '/', label: 'Dashboard' },
-  { path: '/register', label: 'Complaint register' },
+  { path: '/', key: 'nav.dashboard' },
+  { path: '/register', key: 'nav.register' },
 ];
 
 initTheme();
 
 const outlet = el('main', { class: 'layout', id: 'main' });
+let header = null;
+
+function isDark() {
+  const stamped = document.documentElement.getAttribute('data-theme');
+  if (stamped) return stamped === 'dark';
+  return !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+}
 
 function topbar() {
   const navButtons = NAV.map((item) => el('button', {
     type: 'button', dataset: { path: item.path },
     onclick: () => navigate(item.path),
-  }, item.label));
+  }, t(item.key)));
 
   const actorInput = el('input', {
-    type: 'text', value: state.actor, 'aria-label': 'Your name, recorded against every entry',
-    title: 'Every entry you add is recorded against this name',
+    type: 'text', id: 'actor-name', value: state.actor,
+    'aria-label': t('chrome.actorHint'), title: t('chrome.actorHint'),
     onchange: (event) => {
       setActor(event.target.value);
       event.target.value = state.actor;
-      toast(`Entries will be recorded as ${state.actor}.`);
+      toast(t('chrome.actorChanged', { name: state.actor }));
     },
   });
+
+  const languageSelect = el('select', {
+    id: 'language', class: 'lang-select', 'aria-label': t('chrome.language'),
+    title: t('chrome.language'),
+    onchange: (event) => {
+      setLanguage(event.target.value);
+      rebuildChrome();
+      resolve();
+    },
+  }, LANGUAGES.map((entry) => el('option', {
+    value: entry.code, text: entry.label, selected: entry.code === getLanguage(),
+  })));
 
   return el('header', { class: 'topbar' }, [
     el('div', {
@@ -37,29 +57,42 @@ function topbar() {
       onclick: () => navigate('/'),
       onkeydown: (e) => { if (e.key === 'Enter') navigate('/'); },
     }, [
-      el('div', { class: 'brand__mark', text: 'RC' }),
+      el('div', { class: 'brand__mark', text: 'SB' }),
       el('div', { class: 'brand__text' }, [
-        el('div', { class: 'brand__title', text: 'Recurrent Complaints Management' }),
-        el('div', { class: 'brand__sub', text: 'Themes · root causes · actions · incidents' }),
+        el('div', { class: 'brand__title', text: t('app.name') }),
+        el('div', { class: 'brand__sub', text: t('app.tagline') }),
       ]),
     ]),
-    el('nav', { class: 'nav', 'aria-label': 'Primary' }, navButtons),
+    el('nav', { class: 'nav', 'aria-label': t('nav.primary') }, navButtons),
     el('div', { class: 'topbar__spacer' }),
     el('div', { class: 'topbar__tools' }, [
-      el('label', { class: 'actor' }, [el('span', { text: 'Working as' }), actorInput]),
+      el('label', { class: 'actor', for: 'actor-name' }, [
+        el('span', { text: t('chrome.workingAs') }), actorInput,
+      ]),
+      languageSelect,
       el('a', {
         class: 'btn btn--sm', href: '/api/export', download: 'recurrent-complaints-export.json',
-        title: 'Download every record as JSON',
-      }, 'Export'),
+        title: t('chrome.exportHint'),
+      }, t('chrome.export')),
       el('button', {
-        class: 'btn btn--sm', type: 'button', title: 'Switch between light and dark',
+        class: 'btn btn--sm', type: 'button', title: t('chrome.themeHint'),
         onclick: (event) => {
           const next = toggleTheme();
-          event.currentTarget.textContent = next === 'dark' ? 'Light' : 'Dark';
+          event.currentTarget.textContent =
+            next === 'dark' ? t('chrome.themeLight') : t('chrome.themeDark');
         },
-      }, document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light' : 'Dark'),
+      }, isDark() ? t('chrome.themeLight') : t('chrome.themeDark')),
     ]),
   ]);
+}
+
+/** Rebuilt in place when the language changes, so the chrome re-reads its labels. */
+function rebuildChrome() {
+  const next = topbar();
+  header.replaceWith(next);
+  header = next;
+  document.title = t('app.name');
+  markActiveNav();
 }
 
 function markActiveNav() {
@@ -77,9 +110,9 @@ async function guard(render) {
     await render();
   } catch (error) {
     clear(outlet).appendChild(el('div', { class: 'empty' }, [
-      el('div', { text: error.message || 'Something went wrong.' }),
+      el('div', { text: error.message || t('common.somethingWrong') }),
       el('div', { style: { marginTop: '12px' } }, [
-        el('button', { class: 'btn', type: 'button', onclick: () => resolve() }, 'Try again'),
+        el('button', { class: 'btn', type: 'button', onclick: () => resolve() }, t('common.tryAgain')),
       ]),
     ]));
   } finally {
@@ -94,20 +127,23 @@ route('/themes/:id', (params, query) => guard(() => renderTheme(outlet, params.i
 
 setNotFound(() => {
   clear(outlet).appendChild(el('div', { class: 'empty' }, [
-    el('div', { text: 'That page does not exist.' }),
+    el('div', { text: t('common.notFound') }),
     el('div', { style: { marginTop: '12px' } }, [
-      el('button', { class: 'btn', type: 'button', onclick: () => navigate('/') }, 'Go to the dashboard'),
+      el('button', { class: 'btn', type: 'button', onclick: () => navigate('/') },
+        t('common.goToDashboard')),
     ]),
   ]));
 });
 
 async function start() {
-  document.body.appendChild(topbar());
+  header = topbar();
+  document.body.appendChild(header);
   document.body.appendChild(outlet);
+  document.title = t('app.name');
   try {
     await loadMeta();
   } catch (error) {
-    toast(`Could not reach the platform API: ${error.message}`, 'error');
+    toast(t('chrome.apiUnreachable', { message: error.message }), 'error');
   }
   await resolve();
 }

@@ -10,7 +10,9 @@ let db;
 
 before(async () => {
   db = openDatabase(':memory:');
-  seedDatabase(db);
+  // The assertions below read the fixture text, so pin the English set rather
+  // than following whatever the default demo language happens to be.
+  seedDatabase(db, 'en');
   server = createApp(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;

@@ -151,6 +151,7 @@ function createTheme(db, body) {
   const row = repo.insertRow(db, 'themes', { ...data, reference });
   repo.logActivity(db, {
     themeId: row.id, entityType: 'theme', entityId: row.id, action: 'created',
+    subject: row.reference,
     summary: `Recurrent complaint ${row.reference} registered`,
     actor: actorOf(body),
   });
@@ -165,6 +166,7 @@ function updateTheme(db, themeId, body) {
   if (changes.length > 0) {
     repo.logActivity(db, {
       themeId, entityType: 'theme', entityId: themeId, action: 'updated',
+      subject: after.reference,
       summary: summariseChanges('Complaint theme', changes),
       detail: changes, actor: actorOf(body),
     });
@@ -176,6 +178,7 @@ function deleteTheme(db, themeId, body) {
   const theme = repo.deleteThemeCascade(db, themeId);
   repo.logActivity(db, {
     themeId: null, entityType: 'theme', entityId: themeId, action: 'deleted',
+    subject: `${theme.reference} - ${theme.title}`,
     summary: `Recurrent complaint ${theme.reference} (${theme.title}) deleted`,
     actor: actorOf(body),
   });
@@ -201,6 +204,7 @@ function createChild(db, themeId, collection, spec, body) {
   const row = repo.insertRow(db, spec.table, { ...data, theme_id: themeId });
   repo.logActivity(db, {
     themeId, entityType: spec.table, entityId: row.id, action: 'created',
+    subject: spec.describe(row),
     summary: `${spec.label} added - ${spec.describe(row)}`,
     actor: actorOf(body),
   });
@@ -219,6 +223,7 @@ function updateChild(db, themeId, spec, childId, body) {
   if (changes.length > 0) {
     repo.logActivity(db, {
       themeId, entityType: spec.table, entityId: childId, action: 'updated',
+      subject: spec.describe(after),
       summary: summariseChanges(`${spec.label} "${truncate(spec.describe(after))}"`, changes),
       detail: changes, actor: actorOf(body),
     });
@@ -232,6 +237,7 @@ function deleteChild(db, themeId, spec, childId, body) {
   repo.deleteRow(db, spec.table, childId);
   repo.logActivity(db, {
     themeId, entityType: spec.table, entityId: childId, action: 'deleted',
+    subject: spec.describe(row),
     summary: `${spec.label} removed - ${truncate(spec.describe(row))}`,
     actor: actorOf(body),
   });
@@ -280,9 +286,15 @@ function truncate(value, max = 60) {
   return str.length > max ? `${str.slice(0, max - 1)}…` : str;
 }
 
-function monthLabel(isoDate) {
+/** Month and year composed separately - some locales render the combined
+ *  "short month + numeric year" request as a bare "04/2025". */
+const LABEL_LOCALE = (typeof process !== 'undefined' && process.env && process.env.RCM_LABEL_LOCALE)
+  || 'pt-PT';
+
+function monthLabel(isoDate, locale = LABEL_LOCALE) {
   const d = new Date(`${isoDate}T00:00:00Z`);
-  return d.toLocaleString('en-ZA', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const month = d.toLocaleString(locale, { month: 'short', timeZone: 'UTC' }).replace(/\.$/, '');
+  return `${month} ${d.getUTCFullYear()}`;
 }
 
 function methodNotAllowed(method) {

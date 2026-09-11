@@ -1,27 +1,48 @@
 /* ------------------------------------------------------------------ *
- * Design tokens. Light is defined on bare :root; dark is redefined
- * under both the OS media query and the explicit theme stamp, so the
- * in-app toggle wins in either direction.
+ * Standard Bank palette.
+ *
+ * The logo blue #0033A1 is the fixed point: it carries the chrome - the
+ * header, primary buttons, links and active states. It is too dark to serve
+ * as a chart series (OKLCH L 0.38, below the 0.43 floor where series colours
+ * stay legible), so the data colours are lighter steps of the same brand hue,
+ * with the brand red beside them. Every series pair was checked for
+ * colour-vision deficiency against these exact surfaces in both themes.
+ *
+ * Neutrals are biased towards the brand blue rather than pure grey, so the
+ * greys sit with the blue instead of fighting it.
  * ------------------------------------------------------------------ */
 :root {
   color-scheme: light;
-  --plane:        #f9f9f7;
-  --surface:      #fcfcfb;
-  --surface-sunk: #f2f1ed;
-  --ink:          #0b0b0b;
-  --ink-2:        #52514e;
-  --muted:        #898781;
-  --grid:         #e1e0d9;
-  --axis:         #c3c2b7;
-  --border:       rgba(11, 11, 11, 0.10);
-  --border-strong:rgba(11, 11, 11, 0.18);
-  --accent:       #2a78d6;
-  --accent-ink:   #ffffff;
-  --accent-wash:  rgba(42, 120, 214, 0.10);
+  --brand-blue:   #0033a1;   /* the logo blue - never themed */
+  --brand-navy:   #001f7c;
+  --brand-red:    #d0021b;
 
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
+  --plane:        #eef2f9;
+  --surface:      #fbfcfe;
+  --surface-sunk: #e8eef8;
+  --ink:          #0a1020;
+  --ink-2:        #47536b;
+  --muted:        #79859b;
+  --grid:         #dde4f0;
+  --axis:         #c3ccdc;
+  --border:       rgba(10, 16, 32, 0.10);
+  --border-strong:rgba(10, 16, 32, 0.18);
+
+  --accent:       #0033a1;
+  --accent-solid: #0033a1;
+  --accent-ink:   #ffffff;
+  --accent-wash:  rgba(0, 51, 161, 0.08);
+
+  --topbar-bg:    #0033a1;
+  --topbar-ink:   #ffffff;
+  --topbar-dim:   rgba(255, 255, 255, 0.72);
+  --topbar-hover: rgba(255, 255, 255, 0.14);
+  --topbar-edge:  rgba(255, 255, 255, 0.22);
+
+  /* Chart series - validated, see the note above. */
+  --series-1: #2857b6;   /* brand blue, stepped into the legible band */
+  --series-2: #008e85;   /* teal - "resolved" should not read as an alarm */
+  --series-3: #c4403b;   /* brand red, stepped */
 
   --good:     #0ca30c;
   --warning:  #fab219;
@@ -31,52 +52,74 @@
 
   --radius:    10px;
   --radius-sm: 6px;
-  --shadow:    0 1px 2px rgba(11, 11, 11, 0.05), 0 6px 20px rgba(11, 11, 11, 0.05);
-  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --shadow:    0 1px 2px rgba(10, 16, 32, 0.06), 0 6px 20px rgba(10, 16, 32, 0.06);
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --plane:        #0d0d0d;
-    --surface:      #1a1a19;
-    --surface-sunk: #232322;
+    --plane:        #080c14;
+    --surface:      #10141e;
+    --surface-sunk: #1a2030;
     --ink:          #ffffff;
-    --ink-2:        #c3c2b7;
-    --muted:        #898781;
-    --grid:         #2c2c2a;
-    --axis:         #383835;
+    --ink-2:        #b8c2d4;
+    --muted:        #8794aa;
+    --grid:         #212838;
+    --axis:         #2f3849;
     --border:       rgba(255, 255, 255, 0.10);
     --border-strong:rgba(255, 255, 255, 0.20);
-    --accent:       #3987e5;
-    --accent-wash:  rgba(57, 135, 229, 0.16);
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
+
+    --accent:       #6c9df2;
+    --accent-solid: #2456c9;
+    --accent-ink:   #ffffff;
+    --accent-wash:  rgba(108, 157, 242, 0.15);
+
+    --topbar-bg:    #0a1836;
+    --topbar-ink:   #ffffff;
+    --topbar-dim:   rgba(255, 255, 255, 0.70);
+    --topbar-hover: rgba(255, 255, 255, 0.12);
+    --topbar-edge:  rgba(255, 255, 255, 0.16);
+
+    --series-1: #4a7cdf;
+    --series-2: #21a097;
+    --series-3: #e15a52;
+
     --good-ink: #0ca30c;
-    --shadow:   0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
+    --shadow:   0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 20px rgba(0, 0, 0, 0.40);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plane:        #0d0d0d;
-  --surface:      #1a1a19;
-  --surface-sunk: #232322;
+  --plane:        #080c14;
+  --surface:      #10141e;
+  --surface-sunk: #1a2030;
   --ink:          #ffffff;
-  --ink-2:        #c3c2b7;
-  --muted:        #898781;
-  --grid:         #2c2c2a;
-  --axis:         #383835;
+  --ink-2:        #b8c2d4;
+  --muted:        #8794aa;
+  --grid:         #212838;
+  --axis:         #2f3849;
   --border:       rgba(255, 255, 255, 0.10);
   --border-strong:rgba(255, 255, 255, 0.20);
-  --accent:       #3987e5;
-  --accent-wash:  rgba(57, 135, 229, 0.16);
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
+
+  --accent:       #6c9df2;
+  --accent-solid: #2456c9;
+  --accent-ink:   #ffffff;
+  --accent-wash:  rgba(108, 157, 242, 0.15);
+
+  --topbar-bg:    #0a1836;
+  --topbar-ink:   #ffffff;
+  --topbar-dim:   rgba(255, 255, 255, 0.70);
+  --topbar-hover: rgba(255, 255, 255, 0.12);
+  --topbar-edge:  rgba(255, 255, 255, 0.16);
+
+  --series-1: #4a7cdf;
+  --series-2: #21a097;
+  --series-3: #e15a52;
+
   --good-ink: #0ca30c;
-  --shadow:   0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow:   0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 20px rgba(0, 0, 0, 0.40);
 }
 
 * { box-sizing: border-box; }
@@ -101,32 +144,39 @@ a  { color: var(--accent); }
 
 /* ------------------------------- chrome ------------------------------- */
 
+/* The header wears the brand blue, the way the bank's own products do.
+   Everything inside it is scoped to the topbar tokens so the rest of the
+   page keeps the ordinary surface/ink pair. */
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 10px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--topbar-bg);
+  color: var(--topbar-ink);
+  border-bottom: 1px solid var(--topbar-edge);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* The flag device: a white tile carrying the brand blue, as on the logo. */
 .brand__mark {
-  width: 30px; height: 30px; border-radius: 8px; flex: none;
-  background: var(--accent); color: var(--accent-ink);
-  display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  width: 30px; height: 30px; border-radius: 7px; flex: none;
+  background: #ffffff; color: var(--brand-blue);
+  display: grid; place-items: center; font-weight: 700; font-size: 12px;
+  letter-spacing: 0.02em;
 }
 .brand__text { min-width: 0; }
-.brand__title { font-size: 14px; font-weight: 600; white-space: nowrap; }
-.brand__sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.brand__title { font-size: 14px; font-weight: 600; white-space: nowrap; color: var(--topbar-ink); }
+.brand__sub { font-size: 11px; color: var(--topbar-dim); white-space: nowrap; }
 
 .nav { display: flex; gap: 4px; }
 .nav button {
   border: 1px solid transparent; background: none; cursor: pointer;
-  font: inherit; font-size: 13px; color: var(--ink-2);
+  font: inherit; font-size: 13px; color: var(--topbar-dim);
   padding: 6px 12px; border-radius: var(--radius-sm);
 }
-.nav button:hover { background: var(--surface-sunk); color: var(--ink); }
+.nav button:hover { background: var(--topbar-hover); color: var(--topbar-ink); }
 .nav button[aria-current="page"] {
-  background: var(--accent-wash); color: var(--accent); font-weight: 600;
+  background: var(--topbar-hover); color: var(--topbar-ink); font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--topbar-ink);
 }
 
 .topbar__spacer { flex: 1 1 auto; }
@@ -134,13 +184,24 @@ a  { color: var(--accent); }
 
 .actor {
   display: flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--muted);
+  font-size: 12px; color: var(--topbar-dim);
 }
 .actor input {
-  width: 150px; font: inherit; font-size: 12px; color: var(--ink);
-  background: var(--surface-sunk); border: 1px solid var(--border);
+  width: 168px; font: inherit; font-size: 12px; color: var(--topbar-ink);
+  background: var(--topbar-hover); border: 1px solid var(--topbar-edge);
   border-radius: var(--radius-sm); padding: 5px 8px;
 }
+.actor input::placeholder { color: var(--topbar-dim); }
+
+/* Controls sitting on the blue bar borrow its ink, not the page's. */
+.topbar .btn,
+.topbar .lang-select {
+  background: var(--topbar-hover); border-color: var(--topbar-edge);
+  color: var(--topbar-ink);
+}
+.topbar .btn:hover { background: rgba(255, 255, 255, 0.22); }
+.topbar .lang-select option { color: var(--ink); background: var(--surface); }
+.topbar :focus-visible { outline-color: var(--topbar-ink); }
 
 .layout { max-width: 1380px; margin: 0 auto; padding: 20px; }
 @media (max-width: 640px) { .layout { padding: 16px; } }
@@ -151,6 +212,15 @@ a  { color: var(--accent); }
 }
 .page-head__text { flex: 1 1 320px; min-width: 0; }
 .page-head__sub { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.page-head h1 {
+  padding-bottom: 6px;
+  border-bottom: 3px solid var(--brand-blue);
+  display: inline-block;
+}
+:root[data-theme="dark"] .page-head h1 { border-bottom-color: var(--accent); }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .page-head h1 { border-bottom-color: var(--accent); }
+}
 
 /* ------------------------------- controls ------------------------------ */
 
@@ -161,8 +231,10 @@ a  { color: var(--accent); }
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 .btn:hover { background: var(--surface-sunk); }
-.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.btn--primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn--primary {
+  background: var(--accent-solid); border-color: var(--accent-solid); color: var(--accent-ink);
+}
+.btn--primary:hover { filter: brightness(1.12); background: var(--accent-solid); }
 .btn--danger { color: var(--critical); border-color: var(--critical); background: transparent; }
 .btn--danger:hover { background: rgba(208, 59, 59, 0.10); }
 .btn--ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
@@ -433,3 +505,9 @@ td .cell-title, th.col-title, td.col-title { min-width: 240px; }
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
 }
 .section-head h3 { flex: 1 1 auto; }
+
+.lang-select {
+  font-size: 12px; padding: 5px 8px;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); color: var(--ink);
+}

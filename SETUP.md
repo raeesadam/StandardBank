@@ -1,5 +1,7 @@
 # Running the platform in VS Code
 
+*[Versão em português](SETUP.pt.md)*
+
 Everything here works without admin rights and without installing any packages.
 The only requirement is **Node 16.17 or later**.
 

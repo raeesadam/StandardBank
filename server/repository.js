@@ -12,12 +12,18 @@ const TREND_BAND = 15;      // +/- percent inside which a theme counts as stable
  * Activity log - the history every view is rendered from.
  * ------------------------------------------------------------------ */
 
-export function logActivity(db, { themeId, entityType, entityId, action, summary, detail = [], actor }) {
+/**
+ * `subject` is the thing that changed - a reference, a title, a period. The
+ * client composes the sentence around it in the reader's language; `summary`
+ * is kept as a plain-language fallback for anything that predates this.
+ */
+export function logActivity(db, { themeId, entityType, entityId, action, summary, subject = '', detail = [], actor }) {
   return db.insert('activity', {
     theme_id: themeId ?? null,
     entity_type: entityType,
     entity_id: entityId ?? null,
     action,
+    subject,
     summary,
     detail,
     actor: actor || 'Unknown user',

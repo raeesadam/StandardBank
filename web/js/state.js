@@ -1,11 +1,13 @@
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const ACTOR_KEY = 'rcm.actor';
 const THEME_KEY = 'rcm.theme';
 
 export const state = {
   meta: null,
-  actor: read(ACTOR_KEY) || 'Complaint manager',
+  // Falls back to the reader's own language; overwritten the moment they type a name.
+  actor: read(ACTOR_KEY) || t('state.defaultActor'),
 };
 
 function read(key) {
@@ -21,7 +23,7 @@ export async function loadMeta() {
 }
 
 export function setActor(name) {
-  state.actor = name.trim() || 'Complaint manager';
+  state.actor = name.trim() || t('state.defaultActor');
   write(ACTOR_KEY, state.actor);
 }
 

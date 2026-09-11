@@ -79,7 +79,10 @@ assessed after the action has been live for a monitoring period.
 
 ### activity
 
-Written by the API on every create, update and delete. `detail` holds a JSON array of
+Written by the API on every create, update and delete. `entity_type`, `action` and `subject`
+describe *what* changed; the client composes the sentence around them in the reader's
+language, so the timeline is never stuck in the language of whoever made the change.
+`summary` is kept only as a fallback for entries written before those fields existed. `detail` holds a JSON array of
 `{ field, from, to }` changes, so the timeline can show exactly what moved. `actor` comes
 from the `actor` field on the request body (the UI's "Working as" value).
 

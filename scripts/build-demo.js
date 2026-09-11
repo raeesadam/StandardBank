@@ -22,6 +22,7 @@ const FILES = {
   'css/app.css': 'web/css/app.css',
 
   'js/app.js': 'web/js/app.js',
+  'js/i18n.js': 'web/js/i18n.js',
   'js/util.js': 'web/js/util.js',
   'js/ui.js': 'web/js/ui.js',
   'js/charts.js': 'web/js/charts.js',
