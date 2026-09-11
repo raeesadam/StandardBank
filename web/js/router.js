@@ -8,19 +8,47 @@ export function route(pattern, handler) {
 
 export function setNotFound(handler) { notFound = handler; }
 
+/**
+ * The address bar is the source of truth where it works. Some embedded
+ * contexts refuse History API calls, so a failure falls back to tracking the
+ * location in memory - navigation keeps working, it just stops being
+ * bookmarkable.
+ */
+let tracked = null;
+
+function writeLocation(path, { replace }) {
+  try {
+    if (replace) history.replaceState({}, '', path);
+    else history.pushState({}, '', path);
+    tracked = null;
+  } catch {
+    const [pathname, search = ''] = String(path).split('?');
+    tracked = { pathname, search: search ? `?${search}` : '' };
+  }
+}
+
+function readLocation() {
+  return tracked || { pathname: window.location.pathname, search: window.location.search };
+}
+
 export function navigate(path, { replace = false } = {}) {
-  if (replace) history.replaceState({}, '', path);
-  else history.pushState({}, '', path);
+  writeLocation(path, { replace });
   resolve();
 }
 
+/** Updates the address bar without re-rendering - for filters and tab changes. */
+export function replacePath(path) {
+  writeLocation(path, { replace: true });
+}
+
 export function currentPath() {
-  return window.location.pathname + window.location.search;
+  const { pathname, search } = readLocation();
+  return pathname + search;
 }
 
 export async function resolve() {
-  const path = window.location.pathname;
-  const query = Object.fromEntries(new URLSearchParams(window.location.search).entries());
+  const { pathname: path, search } = readLocation();
+  const query = Object.fromEntries(new URLSearchParams(search).entries());
 
   for (const { pattern, handler } of routes) {
     const params = match(pattern, path);

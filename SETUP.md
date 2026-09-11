@@ -3,6 +3,10 @@
 Everything here works without admin rights and without installing any packages.
 The only requirement is **Node 18 or later**.
 
+> **Just want to look at it?** The [interactive demo](https://claude.ai/code/artifact/150bf38f-78db-4af6-b427-4f688c4c31fb) is the full
+> interface in a browser with nothing installed. Come back here when you want to
+> run it properly, keep your own data, or change the code.
+
 ---
 
 ## Step 1 — Check what Node you have
@@ -217,5 +221,5 @@ installer, any one of these gets you there:
 
 **If your bank blocks all of the above**, ask IT for "Node.js LTS" on a
 software request — it is a standard developer runtime with no service or driver
-component. In the meantime, the hosted demo link gives you the full interface in
-a browser with nothing installed at all.
+component. In the meantime, the [hosted demo](https://claude.ai/code/artifact/150bf38f-78db-4af6-b427-4f688c4c31fb) gives you the full
+interface in a browser with nothing installed at all.

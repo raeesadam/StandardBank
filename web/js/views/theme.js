@@ -7,7 +7,7 @@ import { loading, emptyState, openFormModal, confirmDialog, toast, sectionHead }
 import { withActor } from '../state.js';
 import { observationFields, rootCauseFields, actionFields, incidentFields, noteFields } from '../forms.js';
 import { openThemeForm } from './register.js';
-import { navigate } from '../router.js';
+import { navigate, currentPath, replacePath } from '../router.js';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -48,10 +48,11 @@ export async function renderTheme(host, themeId, query = {}) {
 
   const setTab = (key) => {
     activeTab = key;
-    const url = new URL(window.location.href);
-    if (key === 'overview') url.searchParams.delete('tab');
-    else url.searchParams.set('tab', key);
-    history.replaceState({}, '', url.pathname + url.search);
+    const [path, search = ''] = currentPath().split('?');
+    const params = new URLSearchParams(search);
+    if (key === 'overview') params.delete('tab');
+    else params.set('tab', key);
+    replacePath(`${path}${params.toString() ? `?${params}` : ''}`);
     paint();
   };
 

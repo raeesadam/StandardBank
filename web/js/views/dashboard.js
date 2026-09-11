@@ -64,8 +64,6 @@ function kpiRow(data) {
     statTile('Open actions', fmtNumber(k.openActions),
       `${fmtNumber(k.overdueActions)} overdue · ${fmtNumber(k.completedActions)} completed`,
       k.overdueActions > 0 ? 'serious' : null),
-    statTile('Confirmed root causes', fmtNumber(k.confirmedRootCauses),
-      `${fmtNumber(k.linkedIncidents)} linked incidents`),
     statTile('Refunds & goodwill', fmtMoney(k.financialImpact), 'across all monitoring periods'),
     statTile('Regulatory exposure', fmtNumber(k.regulatory),
       `${fmtNumber(k.watchlist)} on the executive watchlist`,
@@ -139,10 +137,16 @@ function topThemesCard(data) {
 
 function rootCauseCard(data) {
   const rows = data.rootCauseCategories.map((row) => ({ label: row.label, value: row.count }));
+  const total = data.rootCauseCategories.reduce((acc, row) => acc + row.count, 0);
   return el('div', { class: 'card' }, [
     el('div', { class: 'card__head' }, [
       el('h3', { text: 'Root causes by category' }),
-      el('div', { class: 'card__sub', text: 'Across every recurrent complaint on the register' }),
+      el('div', {
+        class: 'card__sub',
+        text: `${fmtNumber(total)} documented across the register · `
+          + `${fmtNumber(data.kpis.confirmedRootCauses)} confirmed · `
+          + `${fmtNumber(data.kpis.linkedIncidents)} linked incidents`,
+      }),
     ]),
     barChart({ rows, valueLabel: 'Root causes', color: seriesColor(1), barHeight: 16, gap: 8 }),
   ]);

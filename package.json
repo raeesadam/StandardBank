@@ -13,7 +13,9 @@
     "dev": "node --watch server/index.js",
     "seed": "node server/seed.js",
     "reset": "node server/seed.js --force",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "demo:data": "node scripts/build-demo.js --data",
+    "demo:build": "node scripts/build-demo.js"
   },
   "license": "UNLICENSED"
 }

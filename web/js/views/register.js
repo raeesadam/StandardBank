@@ -4,7 +4,7 @@ import { el, clear, fmtNumber, fmtDate, fmtPercent, pill, debounce,
 import { loading, emptyState, openFormModal, toast } from '../ui.js';
 import { state, withActor } from '../state.js';
 import { themeFields } from '../forms.js';
-import { navigate, currentPath } from '../router.js';
+import { navigate, currentPath, replacePath } from '../router.js';
 
 const SORTS = [
   { value: 'volume', label: 'Most complaints (last 6 periods)' },
@@ -77,7 +77,7 @@ function pushFilters(filters) {
     if (value && value !== 'volume') params.set(key, String(value));
   }
   const next = `/register${params.toString() ? `?${params}` : ''}`;
-  if (next !== currentPath()) history.replaceState({}, '', next);
+  if (next !== currentPath()) replacePath(next);
 }
 
 function filterBar(filters, onChange) {

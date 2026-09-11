@@ -9,6 +9,11 @@ trail of who recorded what.
 Built for the complaint manager: every screen can be edited in place, so new information
 goes in as it arrives rather than waiting for a spreadsheet cycle.
 
+**[Open the interactive demo](https://claude.ai/code/artifact/150bf38f-78db-4af6-b427-4f688c4c31fb)** — the full interface in your browser, nothing to
+install. It runs the real application code against a register held in memory, so every
+form, validation rule and audit-trail entry behaves exactly as it does locally. Nothing is
+saved; reload for a clean register.
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 _More screens: [the register](docs/screenshots/register.png) · [a recurrent complaint in detail](docs/screenshots/complaint-detail.png)_
@@ -72,10 +77,15 @@ web/
   js/charts.js   SVG charts - line, bar, distribution, sparkline - with hover and table views
   js/ui.js       Modal, declarative form builder, confirm dialog, toasts
   js/views/      Dashboard, register, theme detail
+demo/            The hosted demo: an in-memory store and a fetch-free API client
 tests/           api.test.js, store.test.js
 docs/DATA_MODEL.md
 .vscode/         F5 to run, Command Palette tasks for seed / test / reset
 ```
+
+The hosted demo is built from this same code (`npm run demo:build`). It publishes the real
+front end and the real server modules, substituting only the two pieces that assume a
+server - the store and the API client - so the demo cannot drift from the platform.
 
 Adding a field is a three-line change: add the column in `db.js`, the rule in `schemas.js`,
 and the input in `web/js/forms.js`. Adding a dropdown value is one line in `reference.js` —

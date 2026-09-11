@@ -1,0 +1,40 @@
+<title>Recurrent Complaints Register</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  /* The one piece of chrome that exists only in the demo. */
+  .demo-bar {
+    display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap;
+    padding: 9px 20px;
+    background: var(--accent-wash);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .demo-bar__tag {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 1px 9px; flex: none;
+  }
+  .demo-bar__text { flex: 1 1 300px; min-width: 0; }
+  .demo-bar a { color: var(--accent); font-weight: 600; }
+  @media (max-width: 520px) { .demo-bar { padding: 9px 16px; } }
+</style>
+
+<a class="sr-only" href="#main">Skip to content</a>
+
+<div class="demo-bar">
+  <span class="demo-bar__tag">Demo</span>
+  <span class="demo-bar__text">
+    Everything here is editable — add a monitoring period, propose an action, document a
+    root cause. Nothing is saved: reload for a clean register. The figures are illustrative,
+    not real complaint data.
+  </span>
+  <a href="https://github.com/raeesadam/StandardBank/blob/claude/zealous-heisenberg-f87q8d/SETUP.md"
+     target="_blank" rel="noreferrer noopener">Run it locally →</a>
+</div>
+
+<noscript>
+  <div style="padding:24px">This platform needs JavaScript enabled.</div>
+</noscript>
+
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/demo-chrome.js"></script>
