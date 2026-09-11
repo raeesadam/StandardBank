@@ -1,4 +1,4 @@
-import test, { after, before, describe } from 'node:test';
+import { test, after, before, describe } from './support/harness.js';
 import assert from 'node:assert/strict';
 import { openDatabase } from '../server/store.js';
 import { createApp } from '../server/index.js';

@@ -1,7 +1,7 @@
 # Running the platform in VS Code
 
 Everything here works without admin rights and without installing any packages.
-The only requirement is **Node 18 or later**.
+The only requirement is **Node 16.17 or later**.
 
 > **Just want to look at it?** The [interactive demo](https://claude.ai/code/artifact/150bf38f-78db-4af6-b427-4f688c4c31fb) is the full
 > interface in a browser with nothing installed. Come back here when you want to
@@ -23,8 +23,12 @@ node --version
 
 | What you see | What to do |
 |---|---|
-| `v18.x` or higher | You are ready — go to Step 2. |
-| Lower than `v18`, or `command not found` | Read "Getting Node without admin rights" at the bottom of this page first. |
+| `v16.17` or higher | You are ready — go to Step 2. |
+| Lower than `v16.17`, or `command not found` | Read "Getting Node without admin rights" at the bottom of this page first. |
+
+On Node 16 everything works except `npm run dev`'s auto-restart, which needs
+Node 18.11 — `npm run dev` detects that, starts normally and tells you to
+restart after edits.
 
 ---
 
@@ -94,7 +98,7 @@ npm run check
 You should see:
 
 ```
-  OK    Node 22.22.2                                 meets the minimum of 18.0.0
+  OK    Node 16.17.0                                 meets the minimum of 16.17
   OK    The data folder is writable                  .../StandardBank/data
   OK    Port 4173 is free                            the platform will be at http://localhost:4173
   OK    The register is empty                        run "npm run seed" to load the demo data
@@ -169,9 +173,9 @@ npm test
 ```
 
 ```
-# tests 36
-# pass 36
-# fail 0
+----------------------------------------------------
+36 tests, all passed  (181ms)
+Node 16.17.0
 ```
 
 ---
@@ -185,7 +189,7 @@ npm test
 | `npm start` | Starts the platform |
 | `npm test` | Runs the 36 automated tests |
 | `npm run reset` | Wipes and reloads the demo data |
-| `npm run dev` | Restarts automatically when you edit a file (needs Node 18.11+) |
+| `npm run dev` | Restarts automatically when you edit a file (before Node 18.11 it starts normally and says so) |
 
 **To stop the platform:** click into the terminal running it and press `Ctrl + C`.
 
@@ -238,7 +242,7 @@ terminal session.
 |---|---|
 | `npm: command not found` | Node isn't installed, or VS Code was open before you installed it — close VS Code fully and reopen it |
 | `Port 4173 is already in use` | It's already running in another terminal. Either use that one, or start it on another port (see "Using a different port" below) and open <http://localhost:8080> |
-| `SyntaxError: Unexpected token` on startup | Your Node is older than 18 — run `node --version` to confirm |
+| `SyntaxError: Unexpected token` on startup | Your Node is older than 16.17 — run `node --version` to confirm |
 | Browser says "can't connect" | The server isn't running. Check the terminal for the "running at" line |
 | A blank white page | You opened `index.html` as a file. Use the `http://localhost:4173` address instead |
 | `Could not read the register` | `data/complaints.json` was edited into an invalid state — delete it and run `npm run seed` |

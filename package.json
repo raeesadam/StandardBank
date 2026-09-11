@@ -2,18 +2,18 @@
   "name": "recurrent-complaints-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Recurrent Complaints Management - track recurring complaint themes, their volume history, root causes, product-owner action plans and related incidents. Runs on Node 18+ with no dependencies.",
+  "description": "Recurrent Complaints Management - track recurring complaint themes, their volume history, root causes, product-owner action plans and related incidents. Runs on Node 16.17+ with no dependencies.",
   "type": "module",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.17.0"
   },
   "scripts": {
     "check": "node scripts/check.js",
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
+    "dev": "node scripts/dev.js",
     "seed": "node server/seed.js",
     "reset": "node server/seed.js --force",
-    "test": "node --test",
+    "test": "node tests/run.js",
     "demo:data": "node scripts/build-demo.js --data",
     "demo:build": "node scripts/build-demo.js"
   },

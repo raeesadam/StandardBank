@@ -32,8 +32,9 @@ _More screens: [the register](docs/screenshots/register.png) · [a recurrent com
 
 ## Running it
 
-**Node 18 or later. Nothing to install** — no dependencies, no build step, no database
+**Node 16.17 or later. Nothing to install** — no dependencies, no build step, no database
 server. The backend is Node's built-in HTTP server; the front end is plain ES modules.
+Verified on Node 16.17 and Node 22.
 
 ```bash
 npm run check     # confirms your machine can run it, and explains anything that can't
@@ -44,7 +45,7 @@ npm start         # http://localhost:4173
 ```bash
 npm test          # 36 tests, no fixtures or services needed
 npm run reset     # wipe and reload the demo data
-npm run dev       # restart on file change (Node 18.11+)
+npm run dev       # restart on file change (falls back to a plain start before Node 18.11)
 ```
 
 The register lives in one readable JSON file at `data/complaints.json` (override with
@@ -78,7 +79,8 @@ web/
   js/ui.js       Modal, declarative form builder, confirm dialog, toasts
   js/views/      Dashboard, register, theme detail
 demo/            The hosted demo: an in-memory store and a fetch-free API client
-tests/           api.test.js, store.test.js
+tests/           api.test.js, store.test.js, and a small runner that works on every
+                 supported Node version
 docs/DATA_MODEL.md
 .vscode/         F5 to run, Command Palette tasks for seed / test / reset
 ```
@@ -108,8 +110,8 @@ plan quietly stops addressing the problem.
 **Storage is one module.** Records are held in memory and saved to a single JSON file,
 written to a temporary file and renamed over the target so an interrupted save cannot
 leave a half-written register behind. At the scale of a complaints register — hundreds of
-records — querying in JavaScript is fast, and it keeps the platform running on any Node 18
-with nothing to install. Moving to a real database means reimplementing `server/store.js`;
+records — querying in JavaScript is fast, and it keeps the platform running on any Node
+from 16.17 up with nothing to install. Moving to a real database means reimplementing `server/store.js`;
 nothing above it touches storage directly.
 
 **Charts follow one measure per axis.** Complaints received and resolved share a scale and

@@ -10,7 +10,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const REQUIRED_MAJOR = 18;
+const REQUIRED = { major: 16, minor: 17 };   // node:assert/strict, ESM, Array.at
+const WATCH_FROM = { major: 18, minor: 11 };  // node --watch, used by `npm run dev`
 const PORT = Number(process.env.PORT) || 4173;
 
 const results = [];
@@ -18,13 +19,19 @@ const record = (ok, label, detail) => results.push({ ok, label, detail });
 
 /* 1. Node version - the only hard requirement. */
 const [major, minor] = process.versions.node.split('.').map(Number);
-if (major > REQUIRED_MAJOR || (major === REQUIRED_MAJOR && minor >= 0)) {
-  record(true, `Node ${process.versions.node}`, `meets the minimum of ${REQUIRED_MAJOR}.0.0`);
+const atLeast = (floor) => major > floor.major || (major === floor.major && minor >= floor.minor);
+
+if (atLeast(REQUIRED)) {
+  const note = atLeast(WATCH_FROM)
+    ? `meets the minimum of ${REQUIRED.major}.${REQUIRED.minor}`
+    : `meets the minimum of ${REQUIRED.major}.${REQUIRED.minor} - note that "npm run dev" ` +
+      `needs ${WATCH_FROM.major}.${WATCH_FROM.minor}, so use "npm start" and restart after edits`;
+  record(true, `Node ${process.versions.node}`, note);
 } else {
   record(false, `Node ${process.versions.node} is too old`,
-    `this platform needs Node ${REQUIRED_MAJOR} or later. Install it from https://nodejs.org - ` +
-    'the Windows and macOS installers do not need admin rights if you choose a folder ' +
-    'inside your user profile, or use nvm / nvm-windows / fnm.');
+    `this platform needs Node ${REQUIRED.major}.${REQUIRED.minor} or later. ` +
+    'Install it from https://nodejs.org - the Windows and macOS installers do not need ' +
+    'admin rights if you choose a folder inside your user profile, or use nvm / nvm-windows / fnm.');
 }
 
 /* 2. Somewhere to keep the register. */
