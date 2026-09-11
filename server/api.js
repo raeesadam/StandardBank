@@ -56,12 +56,14 @@ export function handleApi(db, { method, segments, query, body }) {
   // /api/activity
   if (segments.length === 1 && segments[0] === 'activity' && method === 'GET') {
     const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 500);
-    const rows = db.prepare(`
-      SELECT a.*, t.reference, t.title AS theme_title
-      FROM activity a LEFT JOIN themes t ON t.id = a.theme_id
-      ORDER BY a.id DESC LIMIT ?
-    `).all(limit);
-    return { status: 200, body: rows.map((r) => ({ ...r, detail: parse(r.detail) })) };
+    const rows = db.all('activity')
+      .sort((a, b) => b.id - a.id)
+      .slice(0, limit)
+      .map((entry) => {
+        const theme = entry.theme_id ? db.get('themes', entry.theme_id) : null;
+        return { ...entry, reference: theme?.reference ?? null, theme_title: theme?.title ?? null };
+      });
+    return { status: 200, body: rows };
   }
 
   if (segments[0] !== 'themes') throw new NotFoundError('Endpoint');
@@ -101,8 +103,8 @@ export function handleApi(db, { method, segments, query, body }) {
   // /api/themes/:id/activity
   if (collection === 'activity' && segments.length === 3 && method === 'GET') {
     repo.getTheme(db, themeId);
-    const rows = db.prepare(`SELECT * FROM activity WHERE theme_id = ? ORDER BY id DESC`).all(themeId);
-    return { status: 200, body: rows.map((r) => ({ ...r, detail: parse(r.detail) })) };
+    const rows = db.find('activity', (row) => row.theme_id === themeId).sort((a, b) => b.id - a.id);
+    return { status: 200, body: rows };
   }
 
   const spec = CHILDREN[collection];
@@ -114,7 +116,7 @@ export function handleApi(db, { method, segments, query, body }) {
       repo.getTheme(db, themeId);
       return {
         status: 200,
-        body: db.prepare(`SELECT * FROM ${spec.table} WHERE theme_id = ? ORDER BY id DESC`).all(themeId),
+        body: db.find(spec.table, (row) => row.theme_id === themeId).sort((a, b) => b.id - a.id),
       };
     }
     if (method === 'POST') return createChild(db, themeId, collection, spec, body);
@@ -143,7 +145,7 @@ export function handleApi(db, { method, segments, query, body }) {
 function createTheme(db, body) {
   const data = coerce(body || {}, themeSchema);
   const reference = (body?.reference || '').trim() || repo.nextReference(db);
-  if (db.prepare(`SELECT id FROM themes WHERE reference = ?`).get(reference)) {
+  if (db.first('themes', (theme) => theme.reference === reference)) {
     throw new ValidationError({ reference: 'is already in use' });
   }
   const row = repo.insertRow(db, 'themes', { ...data, reference });
@@ -171,8 +173,7 @@ function updateTheme(db, themeId, body) {
 }
 
 function deleteTheme(db, themeId, body) {
-  const theme = repo.getRow(db, 'themes', themeId);
-  repo.deleteRow(db, 'themes', themeId);
+  const theme = repo.deleteThemeCascade(db, themeId);
   repo.logActivity(db, {
     themeId: null, entityType: 'theme', entityId: themeId, action: 'deleted',
     summary: `Recurrent complaint ${theme.reference} (${theme.title}) deleted`,
@@ -189,9 +190,8 @@ function createChild(db, themeId, collection, spec, body) {
 
   if (collection === 'observations') {
     if (!data.period_label) data.period_label = monthLabel(data.period_start);
-    const clash = db.prepare(
-      `SELECT id FROM observations WHERE theme_id = ? AND period_start = ?`
-    ).get(themeId, data.period_start);
+    const clash = db.first('observations',
+      (row) => row.theme_id === themeId && row.period_start === data.period_start);
     if (clash) throw new ValidationError({ period_start: 'already has a monitoring entry for this theme' });
   }
   if (collection === 'actions' && data.root_cause_id) {
@@ -228,6 +228,7 @@ function updateChild(db, themeId, spec, childId, body) {
 
 function deleteChild(db, themeId, spec, childId, body) {
   const row = requireChild(db, spec, themeId, childId);
+  if (spec.table === 'root_causes') repo.unlinkActionsFromCause(db, childId);
   repo.deleteRow(db, spec.table, childId);
   repo.logActivity(db, {
     themeId, entityType: spec.table, entityId: childId, action: 'deleted',
@@ -238,22 +239,22 @@ function deleteChild(db, themeId, spec, childId, body) {
 }
 
 function requireChild(db, spec, themeId, childId) {
-  const row = db.prepare(`SELECT * FROM ${spec.table} WHERE id = ? AND theme_id = ?`)
-    .get(childId, themeId);
-  if (!row) throw new NotFoundError(spec.label);
+  const row = db.get(spec.table, childId);
+  if (!row || row.theme_id !== Number(themeId)) throw new NotFoundError(spec.label);
   return row;
 }
 
 function assertRootCauseBelongs(db, themeId, rootCauseId) {
-  const ok = db.prepare(`SELECT id FROM root_causes WHERE id = ? AND theme_id = ?`)
-    .get(rootCauseId, themeId);
-  if (!ok) throw new ValidationError({ root_cause_id: 'must be a root cause on this complaint theme' });
+  const cause = db.get('root_causes', rootCauseId);
+  if (!cause || cause.theme_id !== Number(themeId)) {
+    throw new ValidationError({ root_cause_id: 'must be a root cause on this complaint theme' });
+  }
 }
 
 /** Keeps the theme's "last reported" date honest as monitoring data arrives. */
 function touchTheme(db, themeId, collection, row) {
   if (collection !== 'observations') return;
-  const theme = db.prepare(`SELECT last_reported_on, first_reported_on FROM themes WHERE id = ?`).get(themeId);
+  const theme = db.get('themes', themeId);
   const patch = {};
   if (!theme.last_reported_on || row.period_start > theme.last_reported_on) {
     patch.last_reported_on = row.period_start;
@@ -282,10 +283,6 @@ function truncate(value, max = 60) {
 function monthLabel(isoDate) {
   const d = new Date(`${isoDate}T00:00:00Z`);
   return d.toLocaleString('en-ZA', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-}
-
-function parse(json) {
-  try { return JSON.parse(json); } catch { return []; }
 }
 
 function methodNotAllowed(method) {

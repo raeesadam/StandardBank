@@ -13,9 +13,13 @@ themes (a recurrent complaint)
   └── activity       append-only audit trail of every change
 ```
 
-Every child table cascades on delete of its theme. `actions.root_cause_id` is
-`ON DELETE SET NULL`, so removing a cause never silently removes the action taken against
-it — the action stays, flagged as unattributed.
+Deleting a theme removes everything recorded against it. Deleting a root cause does *not*
+remove the actions raised against it — they stay, unlinked and flagged in the UI as
+unattributed, because the work someone did is not erased by revising the diagnosis.
+
+Storage is `server/store.js`: records held in memory, persisted as one JSON file at
+`data/complaints.json`, written via a temporary file and an atomic rename. Tables are
+plain arrays; ids are per-table and monotonic across restarts.
 
 ### themes
 

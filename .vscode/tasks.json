@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start the platform",
+      "type": "shell",
+      "command": "npm start",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "Load the demo data",
+      "type": "shell",
+      "command": "npm run seed",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "Reset the demo data",
+      "type": "shell",
+      "command": "npm run reset",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "Run the tests",
+      "type": "shell",
+      "command": "npm test",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "group": { "kind": "test", "isDefault": true }
+    }
+  ]
+}

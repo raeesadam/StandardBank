@@ -5,7 +5,7 @@
  *   node server/seed.js --force    # wipes and reloads
  */
 import { existsSync, rmSync } from 'node:fs';
-import { openDatabase, DEFAULT_DB_PATH } from './db.js';
+import { openDatabase, DEFAULT_DB_PATH } from './store.js';
 
 const TODAY = new Date('2026-09-11T00:00:00Z');
 const PERIOD_COUNT = 18; // months of monitoring history
@@ -429,13 +429,11 @@ const THEMES = [
 ];
 
 function seedDatabase(db) {
-  const insert = (table, row) => {
-    const cols = Object.keys(row);
-    const stmt = db.prepare(
-      `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map((c) => `:${c}`).join(', ')})`
-    );
-    return Number(stmt.run(row).lastInsertRowid);
-  };
+  db.batch(() => loadFixtures(db));
+}
+
+function loadFixtures(db) {
+  const insert = (table, row) => db.insert(table, row).id;
   const stamp = (offsetDays = 0) =>
     new Date(TODAY.getTime() - offsetDays * 86400000).toISOString();
 
@@ -444,7 +442,7 @@ function seedDatabase(db) {
     activityOffset = Math.max(0, activityOffset - 1);
     insert('activity', {
       theme_id: themeId, entity_type: entityType, entity_id: entityId, action,
-      summary, detail: JSON.stringify(detail), actor, created_at: stamp(activityOffset),
+      summary, detail, actor, created_at: stamp(activityOffset),
     });
   };
 
@@ -462,8 +460,10 @@ function seedDatabase(db) {
       insert('observations', { ...obs, theme_id: themeId, created_at: stamp(30), updated_at: stamp(30) });
     }
     // Keep the theme's reported-on dates consistent with the monitoring history.
-    db.prepare('UPDATE themes SET first_reported_on = ?, last_reported_on = ? WHERE id = ?')
-      .run(observations[0].period_start, observations.at(-1).period_start, themeId);
+    db.update('themes', themeId, {
+      first_reported_on: observations[0].period_start,
+      last_reported_on: observations[observations.length - 1].period_start,
+    });
     logged(themeId, 'observations', null, 'created',
       `${PERIOD_COUNT} months of monitoring data loaded`, entry.obs.recorder);
 
@@ -515,27 +515,23 @@ function seedDatabase(db) {
 function main() {
   const force = process.argv.includes('--force');
   if (force && existsSync(DEFAULT_DB_PATH)) {
-    for (const suffix of ['', '-wal', '-shm']) {
-      const path = `${DEFAULT_DB_PATH}${suffix}`;
-      if (existsSync(path)) rmSync(path);
-    }
-    console.log('Existing database removed.');
+    rmSync(DEFAULT_DB_PATH);
+    console.log('Existing register removed.');
   }
 
   const db = openDatabase();
-  const existing = db.prepare('SELECT COUNT(*) AS count FROM themes').get().count;
+  const existing = db.count('themes');
   if (existing > 0) {
-    console.log(`Database already has ${existing} recurrent complaints. Use --force to reload.`);
-    db.close();
+    console.log(`The register already holds ${existing} recurrent complaints. Use "npm run reset" to reload.`);
     return;
   }
 
   seedDatabase(db);
   const counts = ['themes', 'observations', 'root_causes', 'actions', 'incidents', 'notes', 'activity']
-    .map((t) => `${db.prepare(`SELECT COUNT(*) AS c FROM ${t}`).get().c} ${t}`)
+    .map((table) => `${db.count(table)} ${table}`)
     .join(', ');
   console.log(`Seeded: ${counts}.`);
-  db.close();
+  console.log(`Saved to ${DEFAULT_DB_PATH}`);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('seed.js')) main();

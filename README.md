@@ -27,46 +27,54 @@ _More screens: [the register](docs/screenshots/register.png) · [a recurrent com
 
 ## Running it
 
-Node 22.5 or later. No dependencies to install — the server uses Node's built-in HTTP
-server and its built-in SQLite, and the front end is plain ES modules with no build step.
+**Node 18 or later. Nothing to install** — no dependencies, no build step, no database
+server. The backend is Node's built-in HTTP server; the front end is plain ES modules.
 
 ```bash
+npm run check     # confirms your machine can run it, and explains anything that can't
 npm run seed      # load the demo register (12 recurrent complaints, 18 months of history)
 npm start         # http://localhost:4173
 ```
 
 ```bash
-npm test          # 29 API tests, no fixtures or services needed
+npm test          # 36 tests, no fixtures or services needed
 npm run reset     # wipe and reload the demo data
-npm run dev       # restart on file change
+npm run dev       # restart on file change (Node 18.11+)
 ```
 
-The database is a single file at `data/complaints.db` (override with `RCM_DB_PATH`).
-Port is `4173` by default (override with `PORT`).
+The register lives in one readable JSON file at `data/complaints.json` (override with
+`RCM_DB_PATH`). Port is `4173` by default (override with `PORT`). The file is gitignored,
+so your entries stay on your machine.
 
 Starting empty instead: skip `npm run seed` and register your first recurrent complaint
 from the register screen.
+
+**Working in VS Code?** Press `F5` to run it with the debugger attached. Step-by-step
+instructions, including how to get Node without admin rights, are in
+**[SETUP.md](SETUP.md)**.
 
 ## How it is put together
 
 ```
 server/
   index.js       HTTP server: static files + /api dispatch, path-traversal guard, 1 MB body cap
-  db.js          Schema and connection (node:sqlite, foreign keys on, WAL)
+  store.js       The whole storage layer - records in memory, persisted as one JSON file
   api.js         REST routing. Child collections are generated from one table of specs
   repository.js  Queries, roll-ups, trend derivation, the activity log and its diffing
   schemas.js     Per-entity field specs - the single source of truth for validation
   validate.js    Spec-driven coercion and validation; partial mode for PATCH
   reference.js   Controlled vocabularies (statuses, categories, severities…)
   seed.js        Demo dataset
+scripts/check.js Environment check behind `npm run check`
 web/
   index.html     App shell
   css/app.css    Design tokens; light and dark both explicitly defined
   js/charts.js   SVG charts - line, bar, distribution, sparkline - with hover and table views
   js/ui.js       Modal, declarative form builder, confirm dialog, toasts
   js/views/      Dashboard, register, theme detail
-tests/api.test.js
+tests/           api.test.js, store.test.js
 docs/DATA_MODEL.md
+.vscode/         F5 to run, Command Palette tasks for seed / test / reset
 ```
 
 Adding a field is a three-line change: add the column in `db.js`, the rule in `schemas.js`,
@@ -87,6 +95,13 @@ regulatory reporting, "who said this and when" matters as much as the value itse
 UI, and so is a root cause with no action against it — the two most common ways an action
 plan quietly stops addressing the problem.
 
+**Storage is one module.** Records are held in memory and saved to a single JSON file,
+written to a temporary file and renamed over the target so an interrupted save cannot
+leave a half-written register behind. At the scale of a complaints register — hundreds of
+records — querying in JavaScript is fast, and it keeps the platform running on any Node 18
+with nothing to install. Moving to a real database means reimplementing `server/store.js`;
+nothing above it touches storage directly.
+
 **Charts follow one measure per axis.** Complaints received and resolved share a scale and
 share a chart; average days to resolve is a different measure, so it gets its own. Every
 chart has a legend, a hover readout and a table view, so no value is reachable only by
@@ -99,5 +114,6 @@ See `docs/DATA_MODEL.md` for the schema and the API surface.
 This runs as a single-process app with no authentication — it is a working platform, not a
 production deployment. Before it carried real customer data it would need, at minimum:
 SSO and role-based access (complaint manager, product owner, read-only executive), a
-managed database rather than a local file, and retention rules for anything
-customer-identifying. The data model and API are shaped to take those without restructuring.
+managed database rather than a local file (see "Storage is one module" above), and
+retention rules for anything customer-identifying. The data model and API are shaped to
+take those without restructuring.

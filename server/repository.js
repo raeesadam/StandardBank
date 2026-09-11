@@ -1,20 +1,28 @@
-import { getDb } from './db.js';
+import { getDb } from './store.js';
 import { NotFoundError } from './validate.js';
 import { CLOSED_THEME_STATUSES, OPEN_ACTION_STATUSES, OPEN_INCIDENT_STATUSES } from './reference.js';
 
 const now = () => new Date().toISOString();
 export const today = () => new Date().toISOString().slice(0, 10);
 
+const RECENT_PERIODS = 6;   // the comparison window that defines a trend
+const TREND_BAND = 15;      // +/- percent inside which a theme counts as stable
+
 /* ------------------------------------------------------------------ *
  * Activity log - the history every view is rendered from.
  * ------------------------------------------------------------------ */
 
 export function logActivity(db, { themeId, entityType, entityId, action, summary, detail = [], actor }) {
-  db.prepare(`
-    INSERT INTO activity (theme_id, entity_type, entity_id, action, summary, detail, actor, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(themeId ?? null, entityType, entityId ?? null, action, summary,
-         JSON.stringify(detail), actor || 'Unknown user', now());
+  return db.insert('activity', {
+    theme_id: themeId ?? null,
+    entity_type: entityType,
+    entity_id: entityId ?? null,
+    action,
+    summary,
+    detail,
+    actor: actor || 'Unknown user',
+    created_at: now(),
+  });
 }
 
 /** Field-level diff so the timeline can say "Severity: High -> Critical". */
@@ -22,6 +30,7 @@ export function diffRecord(before, after, labels = {}) {
   const changes = [];
   for (const [key, value] of Object.entries(after)) {
     if (!(key in before)) continue;
+    if (key === 'updated_at' || key === 'id') continue;
     const from = before[key];
     if (String(from ?? '') === String(value ?? '')) continue;
     changes.push({ field: labels[key] || humanise(key), from: from ?? '', to: value ?? '' });
@@ -34,187 +43,212 @@ function humanise(key) {
 }
 
 /* ------------------------------------------------------------------ *
- * Themes
- * ------------------------------------------------------------------ */
-
-export function nextReference(db) {
-  const year = new Date().getFullYear();
-  const row = db.prepare(
-    `SELECT reference FROM themes WHERE reference LIKE ? ORDER BY reference DESC LIMIT 1`
-  ).get(`RC-${year}-%`);
-  const seq = row ? Number(row.reference.split('-')[2]) + 1 : 1;
-  return `RC-${year}-${String(seq).padStart(3, '0')}`;
-}
-
-const THEME_SORTS = {
-  volume: 'volume_recent DESC, t.title ASC',
-  reference: 't.reference ASC',
-  title: 't.title ASC',
-  severity: 'severity_rank DESC, volume_recent DESC',
-  updated: 't.updated_at DESC',
-  last_reported: 'COALESCE(t.last_reported_on, "") DESC',
-  open_actions: 'open_actions DESC, volume_recent DESC',
-};
-
-/**
- * Themes with their rolled-up monitoring numbers. `volume_recent` is the last
- * 6 reporting periods and `volume_previous` the 6 before that, so the two are
- * directly comparable and give the trend.
- */
-export function listThemes(db, filters = {}) {
-  const where = [];
-  const params = {};
-
-  if (filters.search) {
-    where.push(`(t.title LIKE :search OR t.description LIKE :search OR t.reference LIKE :search
-                 OR t.product_owner LIKE :search OR t.product LIKE :search)`);
-    params.search = `%${filters.search}%`;
-  }
-  for (const key of ['status', 'product', 'channel', 'severity', 'category', 'business_unit']) {
-    if (filters[key]) { where.push(`t.${key} = :${key}`); params[key] = filters[key]; }
-  }
-  if (filters.owner) { where.push('t.product_owner = :owner'); params.owner = filters.owner; }
-  if (filters.regulatory === true) where.push('t.regulatory_risk = 1');
-  if (filters.watchlist === true) where.push('t.watchlist = 1');
-  if (filters.open === true) {
-    where.push(`t.status NOT IN (${[...CLOSED_THEME_STATUSES].map((s) => `'${s}'`).join(',')})`);
-  }
-
-  const openActionList = [...OPEN_ACTION_STATUSES].map((s) => `'${s}'`).join(',');
-  const openIncidentList = [...OPEN_INCIDENT_STATUSES].map((s) => `'${s}'`).join(',');
-
-  const sql = `
-    WITH ranked AS (
-      SELECT theme_id, complaint_count, resolved_count, avg_resolution_days, financial_impact,
-             ROW_NUMBER() OVER (PARTITION BY theme_id ORDER BY period_start DESC) AS rn
-      FROM observations
-    )
-    SELECT t.*,
-      COALESCE((SELECT SUM(complaint_count) FROM ranked WHERE theme_id = t.id AND rn <= 6), 0)  AS volume_recent,
-      COALESCE((SELECT SUM(complaint_count) FROM ranked WHERE theme_id = t.id AND rn BETWEEN 7 AND 12), 0) AS volume_previous,
-      COALESCE((SELECT SUM(complaint_count) FROM observations WHERE theme_id = t.id), 0)        AS volume_total,
-      COALESCE((SELECT SUM(financial_impact) FROM observations WHERE theme_id = t.id), 0)       AS financial_impact_total,
-      (SELECT AVG(avg_resolution_days) FROM ranked WHERE theme_id = t.id AND rn <= 3)           AS avg_resolution_days,
-      (SELECT complaint_count FROM observations WHERE theme_id = t.id
-        ORDER BY period_start DESC LIMIT 1)                                                     AS latest_count,
-      (SELECT period_label FROM observations WHERE theme_id = t.id
-        ORDER BY period_start DESC LIMIT 1)                                                     AS latest_period,
-      (SELECT COUNT(*) FROM observations WHERE theme_id = t.id)                                 AS observation_count,
-      (SELECT COUNT(*) FROM root_causes WHERE theme_id = t.id)                                  AS root_cause_count,
-      (SELECT COUNT(*) FROM root_causes WHERE theme_id = t.id AND confidence = 'Confirmed')      AS confirmed_cause_count,
-      (SELECT COUNT(*) FROM actions WHERE theme_id = t.id)                                       AS action_count,
-      (SELECT COUNT(*) FROM actions WHERE theme_id = t.id AND status IN (${openActionList}))      AS open_actions,
-      (SELECT COUNT(*) FROM actions WHERE theme_id = t.id AND status IN (${openActionList})
-         AND due_date IS NOT NULL AND due_date < date('now'))                                    AS overdue_actions,
-      (SELECT COUNT(*) FROM actions WHERE theme_id = t.id AND status = 'Completed')              AS completed_actions,
-      (SELECT COUNT(*) FROM incidents WHERE theme_id = t.id)                                     AS incident_count,
-      (SELECT COUNT(*) FROM incidents WHERE theme_id = t.id AND status IN (${openIncidentList}))  AS open_incidents,
-      (SELECT COUNT(*) FROM notes WHERE theme_id = t.id)                                         AS note_count,
-      CASE t.severity WHEN 'Critical' THEN 4 WHEN 'High' THEN 3 WHEN 'Medium' THEN 2 ELSE 1 END  AS severity_rank
-    FROM themes t
-    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY ${THEME_SORTS[filters.sort] || THEME_SORTS.volume}
-  `;
-
-  return db.prepare(sql).all(params).map(decorateTheme);
-}
-
-function decorateTheme(row) {
-  const recent = row.volume_recent || 0;
-  const previous = row.volume_previous || 0;
-  let changePct = null;
-  if (previous > 0) changePct = Math.round(((recent - previous) / previous) * 1000) / 10;
-  else if (recent > 0) changePct = null; // no comparable history yet
-
-  let trend = 'Insufficient history';
-  if (changePct !== null) {
-    if (changePct >= 15) trend = 'Increasing';
-    else if (changePct <= -15) trend = 'Decreasing';
-    else trend = 'Stable';
-  }
-
-  return {
-    ...row,
-    regulatory_risk: !!row.regulatory_risk,
-    watchlist: !!row.watchlist,
-    avg_resolution_days: row.avg_resolution_days === null
-      ? null : Math.round(row.avg_resolution_days * 10) / 10,
-    change_pct: changePct,
-    trend,
-  };
-}
-
-export function getTheme(db, id) {
-  const rows = db.prepare(`SELECT id FROM themes WHERE id = ?`).all(id);
-  if (rows.length === 0) throw new NotFoundError('Complaint theme');
-  return listThemes(db).find((t) => t.id === Number(id));
-}
-
-export function getThemeDetail(db, id) {
-  const theme = getTheme(db, id);
-  return {
-    ...theme,
-    observations: db.prepare(
-      `SELECT * FROM observations WHERE theme_id = ? ORDER BY period_start ASC`).all(id),
-    rootCauses: db.prepare(
-      `SELECT * FROM root_causes WHERE theme_id = ? ORDER BY contribution_pct DESC, id ASC`).all(id),
-    actions: db.prepare(`
-      SELECT a.*, rc.title AS root_cause_title
-      FROM actions a LEFT JOIN root_causes rc ON rc.id = a.root_cause_id
-      WHERE a.theme_id = ?
-      ORDER BY CASE a.status WHEN 'Blocked' THEN 0 WHEN 'In progress' THEN 1 WHEN 'Approved' THEN 2
-                             WHEN 'Proposed' THEN 3 ELSE 4 END,
-               COALESCE(a.due_date, '9999-12-31') ASC`).all(id),
-    incidents: db.prepare(
-      `SELECT * FROM incidents WHERE theme_id = ? ORDER BY COALESCE(started_at, '') DESC`).all(id),
-    notes: db.prepare(
-      `SELECT * FROM notes WHERE theme_id = ? ORDER BY created_at DESC, id DESC`).all(id),
-    activity: db.prepare(
-      `SELECT * FROM activity WHERE theme_id = ? ORDER BY id DESC LIMIT 200`).all(id)
-      .map((a) => ({ ...a, detail: safeParse(a.detail) })),
-  };
-}
-
-function safeParse(json) {
-  try { return JSON.parse(json); } catch { return []; }
-}
-
-/* ------------------------------------------------------------------ *
- * Generic child-record helpers
+ * Generic record helpers
  * ------------------------------------------------------------------ */
 
 export function insertRow(db, table, data) {
-  const payload = { ...data, created_at: now(), updated_at: now() };
-  const cols = Object.keys(payload);
-  const stmt = db.prepare(
-    `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map((c) => `:${c}`).join(', ')})`
-  );
-  const info = stmt.run(payload);
-  return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(info.lastInsertRowid);
+  return db.insert(table, { ...data, created_at: now(), updated_at: now() });
 }
 
 export function updateRow(db, table, id, patch) {
-  const existing = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
-  if (!existing) throw new NotFoundError();
-  const payload = { ...patch, updated_at: now() };
-  const sets = Object.keys(payload).map((c) => `${c} = :${c}`).join(', ');
-  db.prepare(`UPDATE ${table} SET ${sets} WHERE id = :id`).run({ ...payload, id: Number(id) });
-  return {
-    before: existing,
-    after: db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id),
-  };
+  const result = db.update(table, id, { ...patch, updated_at: now() });
+  if (!result) throw new NotFoundError();
+  return result;
 }
 
 export function getRow(db, table, id) {
-  const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+  const row = db.get(table, id);
   if (!row) throw new NotFoundError();
   return row;
 }
 
 export function deleteRow(db, table, id) {
   const row = getRow(db, table, id);
-  db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+  db.remove(table, id);
   return row;
+}
+
+/** Children of a theme, oldest first by id unless a comparator is given. */
+export function childrenOf(db, table, themeId, compare) {
+  const rows = db.find(table, (row) => row.theme_id === Number(themeId));
+  return compare ? rows.sort(compare) : rows;
+}
+
+/* ------------------------------------------------------------------ *
+ * Themes
+ * ------------------------------------------------------------------ */
+
+export function nextReference(db) {
+  const year = new Date().getFullYear();
+  const prefix = `RC-${year}-`;
+  const highest = db.find('themes', (theme) => String(theme.reference).startsWith(prefix))
+    .reduce((max, theme) => Math.max(max, Number(String(theme.reference).split('-')[2]) || 0), 0);
+  return `${prefix}${String(highest + 1).padStart(3, '0')}`;
+}
+
+const SEVERITY_RANK = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+
+const THEME_SORTS = {
+  volume: (a, b) => b.volume_recent - a.volume_recent || a.title.localeCompare(b.title),
+  reference: (a, b) => a.reference.localeCompare(b.reference),
+  title: (a, b) => a.title.localeCompare(b.title),
+  severity: (a, b) => b.severity_rank - a.severity_rank || b.volume_recent - a.volume_recent,
+  updated: (a, b) => String(b.updated_at).localeCompare(String(a.updated_at)),
+  last_reported: (a, b) => String(b.last_reported_on || '').localeCompare(String(a.last_reported_on || '')),
+  open_actions: (a, b) => b.open_actions - a.open_actions || b.volume_recent - a.volume_recent,
+};
+
+const matches = (value, wanted) => !wanted || value === wanted;
+
+/**
+ * Themes with their rolled-up monitoring numbers. `volume_recent` is the last
+ * six reporting periods and `volume_previous` the six before, so the two are
+ * directly comparable and give the trend.
+ */
+export function listThemes(db, filters = {}) {
+  const search = filters.search ? String(filters.search).toLowerCase() : '';
+
+  const decorated = db.all('themes')
+    .filter((theme) => {
+      if (search) {
+        const haystack = [theme.title, theme.description, theme.reference,
+                          theme.product_owner, theme.product].join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      if (!matches(theme.status, filters.status)) return false;
+      if (!matches(theme.product, filters.product)) return false;
+      if (!matches(theme.channel, filters.channel)) return false;
+      if (!matches(theme.severity, filters.severity)) return false;
+      if (!matches(theme.category, filters.category)) return false;
+      if (!matches(theme.business_unit, filters.business_unit)) return false;
+      if (filters.owner && theme.product_owner !== filters.owner) return false;
+      if (filters.regulatory === true && !theme.regulatory_risk) return false;
+      if (filters.watchlist === true && !theme.watchlist) return false;
+      if (filters.open === true && CLOSED_THEME_STATUSES.has(theme.status)) return false;
+      return true;
+    })
+    .map((theme) => decorateTheme(db, theme));
+
+  return decorated.sort(THEME_SORTS[filters.sort] || THEME_SORTS.volume);
+}
+
+function decorateTheme(db, theme) {
+  const themeId = theme.id;
+
+  // Newest period first, so "the last six periods" is just the first six rows.
+  const observations = db.find('observations', (row) => row.theme_id === themeId)
+    .sort((a, b) => String(b.period_start).localeCompare(String(a.period_start)));
+
+  const sumCounts = (rows) => rows.reduce((acc, row) => acc + (Number(row.complaint_count) || 0), 0);
+  const recent = observations.slice(0, RECENT_PERIODS);
+  const previous = observations.slice(RECENT_PERIODS, RECENT_PERIODS * 2);
+
+  const volumeRecent = sumCounts(recent);
+  const volumePrevious = sumCounts(previous);
+  const volumeTotal = sumCounts(observations);
+
+  let changePct = null;
+  if (volumePrevious > 0) {
+    changePct = Math.round(((volumeRecent - volumePrevious) / volumePrevious) * 1000) / 10;
+  }
+
+  let trend = 'Insufficient history';
+  if (changePct !== null) {
+    if (changePct >= TREND_BAND) trend = 'Increasing';
+    else if (changePct <= -TREND_BAND) trend = 'Decreasing';
+    else trend = 'Stable';
+  }
+
+  const lastThree = observations.slice(0, 3);
+  const avgResolution = lastThree.length === 0 ? null
+    : Math.round((lastThree.reduce((acc, row) => acc + (Number(row.avg_resolution_days) || 0), 0)
+        / lastThree.length) * 10) / 10;
+
+  const actions = db.find('actions', (row) => row.theme_id === themeId);
+  const rootCauses = db.find('root_causes', (row) => row.theme_id === themeId);
+  const incidents = db.find('incidents', (row) => row.theme_id === themeId);
+  const openActions = actions.filter((action) => OPEN_ACTION_STATUSES.has(action.status));
+  const stamp = today();
+
+  return {
+    ...theme,
+    regulatory_risk: !!theme.regulatory_risk,
+    watchlist: !!theme.watchlist,
+    volume_recent: volumeRecent,
+    volume_previous: volumePrevious,
+    volume_total: volumeTotal,
+    financial_impact_total: observations.reduce((acc, row) => acc + (Number(row.financial_impact) || 0), 0),
+    avg_resolution_days: avgResolution,
+    latest_count: observations[0]?.complaint_count ?? null,
+    latest_period: observations[0]?.period_label ?? null,
+    observation_count: observations.length,
+    root_cause_count: rootCauses.length,
+    confirmed_cause_count: rootCauses.filter((cause) => cause.confidence === 'Confirmed').length,
+    action_count: actions.length,
+    open_actions: openActions.length,
+    overdue_actions: openActions.filter((action) => action.due_date && action.due_date < stamp).length,
+    completed_actions: actions.filter((action) => action.status === 'Completed').length,
+    incident_count: incidents.length,
+    open_incidents: incidents.filter((incident) => OPEN_INCIDENT_STATUSES.has(incident.status)).length,
+    note_count: db.count('notes', (row) => row.theme_id === themeId),
+    severity_rank: SEVERITY_RANK[theme.severity] || 1,
+    change_pct: changePct,
+    trend,
+  };
+}
+
+export function getTheme(db, id) {
+  const theme = db.get('themes', id);
+  if (!theme) throw new NotFoundError('Complaint theme');
+  return decorateTheme(db, theme);
+}
+
+const byPeriodAscending = (a, b) => String(a.period_start).localeCompare(String(b.period_start));
+const byContribution = (a, b) => (b.contribution_pct || 0) - (a.contribution_pct || 0) || a.id - b.id;
+const ACTION_ORDER = { Blocked: 0, 'In progress': 1, Approved: 2, Proposed: 3 };
+const byActionUrgency = (a, b) =>
+  (ACTION_ORDER[a.status] ?? 4) - (ACTION_ORDER[b.status] ?? 4) ||
+  String(a.due_date || '9999-12-31').localeCompare(String(b.due_date || '9999-12-31'));
+const byNewest = (a, b) => String(b.created_at).localeCompare(String(a.created_at)) || b.id - a.id;
+
+export function getThemeDetail(db, id) {
+  const theme = getTheme(db, id);
+  const themeId = theme.id;
+  const causeTitles = new Map(
+    db.find('root_causes', (row) => row.theme_id === themeId).map((row) => [row.id, row.title])
+  );
+
+  return {
+    ...theme,
+    observations: childrenOf(db, 'observations', themeId, byPeriodAscending),
+    rootCauses: childrenOf(db, 'root_causes', themeId, byContribution),
+    actions: childrenOf(db, 'actions', themeId, byActionUrgency)
+      .map((action) => ({ ...action, root_cause_title: causeTitles.get(action.root_cause_id) ?? null })),
+    incidents: childrenOf(db, 'incidents', themeId,
+      (a, b) => String(b.started_at || '').localeCompare(String(a.started_at || ''))),
+    notes: childrenOf(db, 'notes', themeId, byNewest),
+    activity: db.find('activity', (row) => row.theme_id === themeId)
+      .sort((a, b) => b.id - a.id)
+      .slice(0, 200),
+  };
+}
+
+/** Removing a theme removes everything recorded against it. */
+export function deleteThemeCascade(db, themeId) {
+  const theme = getRow(db, 'themes', themeId);
+  const id = Number(themeId);
+  for (const table of ['observations', 'root_causes', 'actions', 'incidents', 'notes', 'activity']) {
+    db.removeWhere(table, (row) => row.theme_id === id);
+  }
+  db.remove('themes', id);
+  return theme;
+}
+
+/** An action outlives the root cause it was raised against; it is only unlinked. */
+export function unlinkActionsFromCause(db, causeId) {
+  for (const action of db.find('actions', (row) => row.root_cause_id === Number(causeId))) {
+    db.update('actions', action.id, { root_cause_id: null });
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -223,65 +257,59 @@ export function deleteRow(db, table, id) {
 
 export function dashboard(db, { months = 12 } = {}) {
   const themes = listThemes(db);
-  const openThemes = themes.filter((t) => !CLOSED_THEME_STATUSES.has(t.status));
+  const openThemes = themes.filter((theme) => !CLOSED_THEME_STATUSES.has(theme.status));
+  const stamp = today();
 
-  const volumeByPeriod = db.prepare(`
-    SELECT period_start, period_label,
-           SUM(complaint_count) AS complaints,
-           SUM(resolved_count)  AS resolved,
-           SUM(financial_impact) AS financial_impact
-    FROM observations
-    GROUP BY period_start, period_label
-    ORDER BY period_start DESC
-    LIMIT ?
-  `).all(months).reverse();
+  const periods = new Map();
+  for (const row of db.all('observations')) {
+    const key = row.period_start;
+    if (!periods.has(key)) {
+      periods.set(key, {
+        period_start: key, period_label: row.period_label || key,
+        complaints: 0, resolved: 0, financial_impact: 0,
+      });
+    }
+    const bucket = periods.get(key);
+    bucket.complaints += Number(row.complaint_count) || 0;
+    bucket.resolved += Number(row.resolved_count) || 0;
+    bucket.financial_impact += Number(row.financial_impact) || 0;
+  }
+  const volumeByPeriod = [...periods.values()]
+    .sort((a, b) => String(a.period_start).localeCompare(String(b.period_start)))
+    .slice(-months);
 
-  const byStatus = countBy(db, 'themes', 'status');
-  const bySeverity = countBy(db, 'themes', 'severity');
-  const byProduct = countBy(db, 'themes', 'product');
-  const byChannel = countBy(db, 'themes', 'channel');
+  const overdueActions = db.all('actions')
+    .filter((action) => OPEN_ACTION_STATUSES.has(action.status) && action.due_date && action.due_date < stamp)
+    .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)))
+    .map((action) => {
+      const theme = db.get('themes', action.theme_id);
+      return {
+        id: action.id, title: action.title, due_date: action.due_date,
+        status: action.status, priority: action.priority, proposed_by: action.proposed_by,
+        theme_id: action.theme_id,
+        reference: theme?.reference ?? '', theme_title: theme?.title ?? '',
+      };
+    });
 
-  const rootCauseCategories = db.prepare(`
-    SELECT category AS label, COUNT(*) AS count FROM root_causes
-    GROUP BY category ORDER BY count DESC
-  `).all();
+  const recentActivity = db.all('activity')
+    .sort((a, b) => b.id - a.id)
+    .slice(0, 25)
+    .map((entry) => {
+      const theme = entry.theme_id ? db.get('themes', entry.theme_id) : null;
+      return { ...entry, reference: theme?.reference ?? null, theme_title: theme?.title ?? null };
+    });
 
-  const actionsByStatus = db.prepare(`
-    SELECT status AS label, COUNT(*) AS count FROM actions
-    GROUP BY status ORDER BY count DESC
-  `).all();
-
-  const actionEffectiveness = db.prepare(`
-    SELECT effectiveness AS label, COUNT(*) AS count FROM actions
-    WHERE status = 'Completed' GROUP BY effectiveness ORDER BY count DESC
-  `).all();
-
-  const overdueActions = db.prepare(`
-    SELECT a.id, a.title, a.due_date, a.status, a.priority, a.proposed_by,
-           t.id AS theme_id, t.reference, t.title AS theme_title
-    FROM actions a JOIN themes t ON t.id = a.theme_id
-    WHERE a.status IN (${[...OPEN_ACTION_STATUSES].map((s) => `'${s}'`).join(',')})
-      AND a.due_date IS NOT NULL AND a.due_date < date('now')
-    ORDER BY a.due_date ASC
-  `).all();
-
-  const recentActivity = db.prepare(`
-    SELECT a.*, t.reference, t.title AS theme_title
-    FROM activity a LEFT JOIN themes t ON t.id = a.theme_id
-    ORDER BY a.id DESC LIMIT 25
-  `).all().map((a) => ({ ...a, detail: safeParse(a.detail) }));
-
-  const latestPeriod = volumeByPeriod.at(-1) || null;
-  const previousPeriod = volumeByPeriod.at(-2) || null;
+  const latestPeriod = volumeByPeriod[volumeByPeriod.length - 1] || null;
+  const previousPeriod = volumeByPeriod[volumeByPeriod.length - 2] || null;
 
   return {
     generatedAt: now(),
     kpis: {
       totalThemes: themes.length,
       openThemes: openThemes.length,
-      watchlist: themes.filter((t) => t.watchlist).length,
-      regulatory: themes.filter((t) => t.regulatory_risk).length,
-      increasing: openThemes.filter((t) => t.trend === 'Increasing').length,
+      watchlist: themes.filter((theme) => theme.watchlist).length,
+      regulatory: themes.filter((theme) => theme.regulatory_risk).length,
+      increasing: openThemes.filter((theme) => theme.trend === 'Increasing').length,
       complaintsLatestPeriod: latestPeriod?.complaints ?? 0,
       complaintsPreviousPeriod: previousPeriod?.complaints ?? 0,
       latestPeriodLabel: latestPeriod?.period_label ?? null,
@@ -291,22 +319,37 @@ export function dashboard(db, { months = 12 } = {}) {
       openIncidents: sum(themes, 'open_incidents'),
       linkedIncidents: sum(themes, 'incident_count'),
       confirmedRootCauses: sum(themes, 'confirmed_cause_count'),
-      financialImpact: themes.reduce((acc, t) => acc + (t.financial_impact_total || 0), 0),
+      financialImpact: themes.reduce((acc, theme) => acc + (theme.financial_impact_total || 0), 0),
     },
     volumeByPeriod,
     topThemes: [...themes].sort((a, b) => b.volume_recent - a.volume_recent).slice(0, 8),
-    increasingThemes: openThemes.filter((t) => t.trend === 'Increasing')
-      .sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0)).slice(0, 6),
-    byStatus, bySeverity, byProduct, byChannel,
-    rootCauseCategories, actionsByStatus, actionEffectiveness,
-    overdueActions, recentActivity,
+    increasingThemes: openThemes
+      .filter((theme) => theme.trend === 'Increasing')
+      .sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0))
+      .slice(0, 6),
+    byStatus: countBy(db, 'themes', 'status'),
+    bySeverity: countBy(db, 'themes', 'severity'),
+    byProduct: countBy(db, 'themes', 'product'),
+    byChannel: countBy(db, 'themes', 'channel'),
+    rootCauseCategories: countBy(db, 'root_causes', 'category'),
+    actionsByStatus: countBy(db, 'actions', 'status'),
+    actionEffectiveness: countBy(db, 'actions', 'effectiveness',
+      (action) => action.status === 'Completed'),
+    overdueActions,
+    recentActivity,
   };
 }
 
-function countBy(db, table, column) {
-  return db.prepare(
-    `SELECT ${column} AS label, COUNT(*) AS count FROM ${table} GROUP BY ${column} ORDER BY count DESC`
-  ).all();
+function countBy(db, table, field, predicate) {
+  const rows = predicate ? db.find(table, predicate) : db.all(table);
+  const counts = new Map();
+  for (const row of rows) {
+    const label = row[field] ?? 'Unassigned';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 function sum(rows, key) {
@@ -314,9 +357,10 @@ function sum(rows, key) {
 }
 
 export function exportAll(db) {
-  const tables = ['themes', 'observations', 'root_causes', 'actions', 'incidents', 'notes', 'activity'];
   const out = { exportedAt: now(), version: 1 };
-  for (const table of tables) out[table] = db.prepare(`SELECT * FROM ${table}`).all();
+  for (const table of ['themes', 'observations', 'root_causes', 'actions', 'incidents', 'notes', 'activity']) {
+    out[table] = db.all(table);
+  }
   return out;
 }
 

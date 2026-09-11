@@ -1,0 +1,15 @@
+{
+  "files.eol": "\n",
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "javascript.preferences.importModuleSpecifierEnding": "js",
+  "search.exclude": {
+    "**/data": true,
+    "**/node_modules": true
+  },
+  "files.associations": {
+    "*.json": "jsonc"
+  }
+}

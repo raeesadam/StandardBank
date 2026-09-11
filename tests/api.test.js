@@ -1,6 +1,6 @@
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDatabase } from '../server/db.js';
+import { openDatabase } from '../server/store.js';
 import { createApp } from '../server/index.js';
 import { seedDatabase } from '../server/seed.js';
 
@@ -237,6 +237,21 @@ describe('root causes and actions', () => {
       method: 'PATCH', body: { nonsense: true },
     });
     assert.equal(status, 422);
+  });
+
+  test('deleting a root cause unlinks its actions instead of deleting them', async () => {
+    const before = await call(`/api/themes/${themeId}`);
+    const action = before.body.actions.find((a) => a.root_cause_id === causeId);
+    assert.ok(action, 'expected an action linked to the cause');
+
+    const removed = await call(`/api/themes/${themeId}/root-causes/${causeId}`, { method: 'DELETE' });
+    assert.equal(removed.status, 200);
+
+    const after = await call(`/api/themes/${themeId}`);
+    const survivor = after.body.actions.find((a) => a.id === action.id);
+    assert.ok(survivor, 'the action was deleted along with its root cause');
+    assert.equal(survivor.root_cause_id, null);
+    assert.equal(survivor.root_cause_title, null);
   });
 
   test('a child record cannot be reached through the wrong theme', async () => {

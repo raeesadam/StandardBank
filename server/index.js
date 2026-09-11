@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getDb } from './db.js';
+import { getDb } from './store.js';
 import { handleApi } from './api.js';
 import { ValidationError, NotFoundError } from './validate.js';
 
